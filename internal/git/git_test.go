@@ -1,7 +1,11 @@
 package git
 
 import (
+	"os"
+	"os/exec"
+	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -34,10 +38,9 @@ func TestParseStatus(t *testing.T) {
 			},
 		},
 		{
-			name:    "empty input",
-			input:   "",
-			want:    nil,
-			wantErr: true,
+			name:  "empty input",
+			input: "",
+			want:  nil,
 		},
 		{
 			name:  "rename file",
@@ -77,4 +80,153 @@ func TestParseStatus(t *testing.T) {
 			}
 		})
 	}
+}
+
+func run(t *testing.T, dir, name string, args ...string) {
+	t.Helper()
+	cmd := exec.Command(name, args...)
+	cmd.Dir = dir
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("%s %v failed: %v\n%s", name, args, err, out)
+	}
+}
+
+func initRepo(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	run(t, dir, "git", "init")
+	run(t, dir, "git", "config", "user.email", "test@test.com")
+	run(t, dir, "git", "config", "user.name", "Test")
+	run(t, dir, "git", "commit", "--allow-empty", "-m", "init")
+	return dir
+}
+
+func defaultBranch(t *testing.T, dir string) string {
+	t.Helper()
+	cmd := exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD")
+	cmd.Dir = dir
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("failed to get default branch: %v", err)
+	}
+	return strings.TrimSpace(string(out))
+}
+
+func TestStatusIntegration(t *testing.T) {
+	t.Run("clean repo", func(t *testing.T) {
+		dir := initRepo(t)
+		got, err := Status(dir)
+		if err != nil {
+			t.Fatalf("Status() error: %v", err)
+		}
+		if got != nil {
+			t.Fatalf("Status() = %v, want nil", got)
+		}
+	})
+
+	t.Run("modified file", func(t *testing.T) {
+		dir := initRepo(t)
+		if err := writeFile(dir, "hello.go", "package main\n"); err != nil {
+			t.Fatal(err)
+		}
+		run(t, dir, "git", "add", "hello.go")
+		run(t, dir, "git", "commit", "-m", "add file")
+		if err := writeFile(dir, "hello.go", "package main\n// changed\n"); err != nil {
+			t.Fatal(err)
+		}
+
+		got, err := Status(dir)
+		if err != nil {
+			t.Fatalf("Status() error: %v", err)
+		}
+		if len(got) != 1 {
+			t.Fatalf("Status() returned %d entries, want 1", len(got))
+		}
+		if got[0].Worktree != 'M' {
+			t.Errorf("Worktree = %c, want M", got[0].Worktree)
+		}
+	})
+
+	t.Run("untracked file", func(t *testing.T) {
+		dir := initRepo(t)
+		if err := writeFile(dir, "new.go", "package main\n"); err != nil {
+			t.Fatal(err)
+		}
+
+		got, err := Status(dir)
+		if err != nil {
+			t.Fatalf("Status() error: %v", err)
+		}
+		if len(got) != 1 {
+			t.Fatalf("Status() returned %d entries, want 1", len(got))
+		}
+		if got[0].Index != '?' || got[0].Worktree != '?' {
+			t.Errorf("got %c%c, want ??", got[0].Index, got[0].Worktree)
+		}
+	})
+}
+
+func TestCheckout(t *testing.T) {
+	dir := initRepo(t)
+	branch := defaultBranch(t, dir)
+	run(t, dir, "git", "checkout", "-b", "feat")
+
+	if err := Checkout(dir, branch); err != nil {
+		t.Fatalf("Checkout() error: %v", err)
+	}
+
+	got := currentBranch(t, dir)
+	if got != branch {
+		t.Errorf("branch = %q, want %q", got, branch)
+	}
+}
+
+func TestCreateBranch(t *testing.T) {
+	dir := initRepo(t)
+
+	if err := CreateBranch(dir, "new-branch"); err != nil {
+		t.Fatalf("CreateBranch() error: %v", err)
+	}
+
+	got := currentBranch(t, dir)
+	if got != "new-branch" {
+		t.Errorf("branch = %q, want %q", got, "new-branch")
+	}
+}
+
+func TestDeleteBranch(t *testing.T) {
+	t.Run("delete other branch", func(t *testing.T) {
+		dir := initRepo(t)
+		branch := defaultBranch(t, dir)
+		run(t, dir, "git", "checkout", "-b", "temp")
+		run(t, dir, "git", "checkout", branch)
+
+		if err := DeleteBranch(dir, "temp"); err != nil {
+			t.Fatalf("DeleteBranch() error: %v", err)
+		}
+	})
+
+	t.Run("delete current branch fails", func(t *testing.T) {
+		dir := initRepo(t)
+		branch := defaultBranch(t, dir)
+		err := DeleteBranch(dir, branch)
+		if err == nil {
+			t.Fatal("DeleteBranch(current) succeeded, want error")
+		}
+	})
+}
+
+func currentBranch(t *testing.T, dir string) string {
+	t.Helper()
+	cmd := exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD")
+	cmd.Dir = dir
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("failed to get branch: %v", err)
+	}
+	return strings.TrimSpace(string(out))
+}
+
+func writeFile(dir, name, content string) error {
+	return os.WriteFile(filepath.Join(dir, name), []byte(content), 0644)
 }

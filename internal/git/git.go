@@ -18,14 +18,16 @@ type FileStatus struct {
 // TODO: Refactor to avoid always using string(out)
 
 // Status returns the working tree status
-func Status() ([]FileStatus, error) {
-	out, err := exec.Command(
+func Status(dir string) ([]FileStatus, error) {
+	cmd := exec.Command(
 		"git",
 		"status",
 		"--porcelain",
 		"-z",
 		"--untracked-files=all",
-	).Output()
+	)
+	cmd.Dir = dir
+	out, err := cmd.Output()
 	if err != nil {
 		return nil, err
 	}
@@ -60,4 +62,26 @@ func parseStatus(out string) ([]FileStatus, error) {
 		files = append(files, fs)
 	}
 	return files, nil
+}
+
+// Checkout switches the working tree to the given branch.
+func Checkout(dir, branch string) error {
+	cmd := exec.Command("git", "checkout", branch)
+	cmd.Dir = dir
+	return cmd.Run()
+}
+
+// CreateBranch create and checks out a new branch off the current HEAD.
+func CreateBranch(dir, branch string) error {
+	cmd := exec.Command("git", "checkout", "-b", branch)
+	cmd.Dir = dir
+	return cmd.Run()
+}
+
+// DeleteBranch removes a local branch. It refuses (like plain `git branch
+// -d`) if the branch has commits not merged elsewhere.
+func DeleteBranch(dir, branch string) error {
+	cmd := exec.Command("git", "branch", "-d", branch)
+	cmd.Dir = dir
+	return cmd.Run()
 }
