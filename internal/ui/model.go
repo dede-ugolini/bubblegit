@@ -4,6 +4,7 @@ package ui
 import (
 	"bubblegit/internal/git"
 
+	"charm.land/bubbles/v2/textinput"
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 )
@@ -16,8 +17,10 @@ const (
 	focusCount
 )
 
-type branchesMsg []git.BranchInfo
-type errMsg struct{ err error }
+type (
+	branchesMsg []git.BranchInfo
+	errMsg      struct{ err error }
+)
 
 type Model struct {
 	dir string
@@ -28,13 +31,17 @@ type Model struct {
 	diff        viewport.Model
 	err         error
 
+	input      textinput.Model
+	focusInput bool
+
 	ready    bool
 	quitting bool
 }
 
 func NewModel(dir string) Model {
 	return Model{
-		dir: dir,
+		dir:   dir,
+		input: textinput.New(),
 	}
 }
 

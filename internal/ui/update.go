@@ -3,10 +3,45 @@ package ui
 import (
 	"bubblegit/internal/git"
 
+	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 )
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if m.focusInput {
+		if key, ok := msg.(tea.KeyMsg); ok {
+			switch key.String() {
+			case "enter":
+				name := m.input.Value()
+				m.focusInput = false
+				if name == "" {
+					return m, nil
+				}
+				return m, func() tea.Msg {
+					err := git.CreateBranch(m.dir, name)
+					if err != nil {
+						return errMsg{err}
+					}
+					err = git.Checkout(m.dir, name)
+					if err != nil {
+						return errMsg{err}
+					}
+					branches, err := git.Branches(m.dir)
+					if err != nil {
+						return errMsg{err}
+					}
+					return branchesMsg(branches)
+				}
+			case "esc":
+				m.focusInput = false
+				return m, nil
+			}
+		}
+		var cmd tea.Cmd
+		m.input, cmd = m.input.Update(msg)
+		return m, cmd
+	}
+
 	switch msg := msg.(type) {
 
 	case errMsg:
@@ -58,6 +93,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 					return branchesMsg(branches)
 				}
+			}
+
+		case "n":
+			if m.focus == focusBranch {
+				m.input.SetWidth(20)
+				m.input.CharLimit = 20
+				m.input.SetValue("")
+				m.input.Prompt = "branch> "
+				m.input.Placeholder = "new branch name"
+				m.input.Focus()
+				m.focusInput = true
+				return m, textinput.Blink
 			}
 		}
 	}
