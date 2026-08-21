@@ -28,15 +28,30 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.focus = (m.focus + 1) % focusCount
 
 		case "up":
-			if m.branchFocus > 0 {
-				m.branchFocus--
+			switch m.focus {
+			case focusBranch:
+				m.moveBranch(-1)
 			}
+
 		case "down":
-			if m.branchFocus < len(m.branches)-1 {
-				m.branchFocus++
+			switch m.focus {
+			case focusBranch:
+				m.moveBranch(1)
 			}
 		}
 	}
 
 	return m, nil
+}
+
+func (m *Model) moveBranch(delta int) {
+	m.branchFocus += delta
+
+	if m.branchFocus < 0 {
+		m.branchFocus = 0
+	}
+
+	if m.branchFocus >= len(m.branches) {
+		m.branchFocus = len(m.branches) - 1
+	}
 }
