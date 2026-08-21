@@ -9,30 +9,37 @@ import (
 	"charm.land/lipgloss/v2"
 )
 
+var errStyle = lipgloss.NewStyle().Foreground(lipgloss.ANSIColor(1))
+
 func (m Model) View() tea.View {
 	if m.quitting {
-		tea.NewView("")
+		return tea.NewView("")
 	}
 
 	// TODO: add spinner
 	if !m.ready {
-		tea.NewView("Loading...")
+		return tea.NewView("Loading...")
 	}
 
-	return tea.NewView(renderBranches(m.dir, m.branchFocus, m.focus))
+	var b strings.Builder
+	b.WriteString(renderBranches(m.branches, m.branchFocus, m.focus))
+	if m.err != nil {
+		b.WriteString("\n")
+		b.WriteString(errStyle.Render(m.err.Error()))
+	}
+	return tea.NewView(b.String())
 }
 
-func renderBranches(dir string, idx, focus int) string {
-	branches, _ := git.Branches(dir)
+func renderBranches(branches []git.BranchInfo, idx, focus int) string {
 	var names []string
 
 	for i, b := range branches {
 		name := b.Name
-		if idx == i {
-			name = lipgloss.NewStyle().Background(lipgloss.ANSIColor(9)).Render(name)
-		}
 		if b.Current {
 			name = lipgloss.NewStyle().Foreground(lipgloss.ANSIColor(11)).Render(name)
+		}
+		if idx == i {
+			name = lipgloss.NewStyle().Background(lipgloss.ANSIColor(9)).Render(name)
 		}
 		names = append(names, name)
 	}

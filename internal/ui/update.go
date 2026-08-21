@@ -9,6 +9,10 @@ import (
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 
+	case errMsg:
+		m.err = msg.err
+		return m, nil
+
 	case branchesMsg:
 		m.branches = []git.BranchInfo(msg)
 		return m, nil
@@ -20,6 +24,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
+		m.err = nil
 		switch msg.String() {
 		case "q", "ctrl+c":
 			return m, tea.Quit
@@ -37,6 +42,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			switch m.focus {
 			case focusBranch:
 				m.moveBranch(1)
+			}
+
+		case "d":
+			if m.focus == focusBranch && len(m.branches) > 0 {
+				branch := m.branches[m.branchFocus].Name
+				return m, func() tea.Msg {
+					err := git.DeleteBranch(m.dir, branch)
+					if err != nil {
+						return errMsg{err}
+					}
+					branches, err := git.Branches(m.dir)
+					if err != nil {
+						return errMsg{err}
+					}
+					return branchesMsg(branches)
+				}
 			}
 		}
 	}

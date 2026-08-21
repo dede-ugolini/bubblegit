@@ -2,6 +2,7 @@
 package git
 
 import (
+	"fmt"
 	"os/exec"
 	"sort"
 	"strings"
@@ -112,14 +113,22 @@ func Branches(dir string) ([]BranchInfo, error) {
 func Checkout(dir, branch string) error {
 	cmd := exec.Command("git", "checkout", branch)
 	cmd.Dir = dir
-	return cmd.Run()
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("%s", strings.TrimSpace(string(out)))
+	}
+	return nil
 }
 
 // CreateBranch create and checks out a new branch off the current HEAD.
 func CreateBranch(dir, branch string) error {
 	cmd := exec.Command("git", "checkout", "-b", branch)
 	cmd.Dir = dir
-	return cmd.Run()
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("%s", strings.TrimSpace(string(out)))
+	}
+	return nil
 }
 
 // DeleteBranch removes a local branch. It refuses (like plain `git branch
@@ -127,5 +136,9 @@ func CreateBranch(dir, branch string) error {
 func DeleteBranch(dir, branch string) error {
 	cmd := exec.Command("git", "branch", "-d", branch)
 	cmd.Dir = dir
-	return cmd.Run()
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("%s", strings.TrimSpace(string(out)))
+	}
+	return nil
 }

@@ -17,16 +17,16 @@ const (
 )
 
 type branchesMsg []git.BranchInfo
+type errMsg struct{ err error }
 
 type Model struct {
 	dir string
-
-	branch string
 
 	focus       int
 	branchFocus int
 	branches    []git.BranchInfo
 	diff        viewport.Model
+	err         error
 
 	ready    bool
 	quitting bool
@@ -40,7 +40,10 @@ func NewModel(dir string) Model {
 
 func (m Model) Init() tea.Cmd {
 	return func() tea.Msg {
-		branches, _ := git.Branches(m.dir)
+		branches, err := git.Branches(m.dir)
+		if err != nil {
+			return errMsg{err}
+		}
 		return branchesMsg(branches)
 	}
 }
