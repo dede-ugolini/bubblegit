@@ -3,6 +3,7 @@ package git
 
 import (
 	"os/exec"
+	"sort"
 	"strings"
 )
 
@@ -14,6 +15,12 @@ type FileStatus struct {
 
 	OrigPath string
 }
+
+// field/record separators unlikely to appear in commit metadata.
+const (
+	logFieldSep  = "\x1f"
+	logRecordSep = "\x1e"
+)
 
 // TODO: Refactor to avoid always using string(out)
 
@@ -62,6 +69,43 @@ func parseStatus(out string) ([]FileStatus, error) {
 		files = append(files, fs)
 	}
 	return files, nil
+}
+
+type BranchInfo struct {
+	Name    string
+	Current bool
+}
+
+// Branches lists local branches, current branch first.
+func Branches(dir string) ([]BranchInfo, error) {
+	cmd := exec.Command("git", "branch", "--format=%(HEAD)"+logFieldSep+"%(refname)"+logFieldSep+"%(refname:short)")
+	cmd.Dir = dir
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, err
+	}
+	var branches []BranchInfo
+	for line := range strings.SplitSeq(string(out), "\n") {
+		line = strings.TrimRight(line, "\r")
+		if line == "" {
+			continue
+		}
+		f := strings.SplitN(line, logFieldSep, 3)
+		if len(f) != 3 {
+			continue
+		}
+		// In detached-HEAD state, git lists a synthetic
+		// "(HEAD detached at ...)" row whose refname isn't a real ref
+		// under refs/heads/ — skip it, it's not a checkout/delete target.
+		if !strings.HasPrefix(f[1], "refs/heads/") {
+			continue
+		}
+		branches = append(branches, BranchInfo{Name: f[2], Current: f[0] == "*"})
+	}
+	sort.SliceStable(branches, func(i, j int) bool {
+		return branches[i].Current && !branches[j].Current
+	})
+	return branches, nil
 }
 
 // Checkout switches the working tree to the given branch.
