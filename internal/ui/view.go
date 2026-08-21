@@ -19,19 +19,32 @@ func (m Model) View() tea.View {
 		tea.NewView("Loading...")
 	}
 
-	return tea.NewView(renderBranches(m.dir))
+	return tea.NewView(renderBranches(m.dir, m.branchFocus, m.focus))
 }
 
-func renderBranches(dir string) string {
+func renderBranches(dir string, idx, focus int) string {
 	branches, _ := git.Branches(dir)
 	var names []string
-	for _, b := range branches {
-		if b.Current {
-			names = append(names, lipgloss.NewStyle().Foreground(lipgloss.ANSIColor(11)).Render(b.Name))
-			continue
+
+	for i, b := range branches {
+		name := b.Name
+		if idx == i {
+			name = lipgloss.NewStyle().Background(lipgloss.ANSIColor(9)).Render(name)
 		}
-		names = append(names, b.Name)
-		// TODO: style current branch
+		if b.Current {
+			name = lipgloss.NewStyle().Foreground(lipgloss.ANSIColor(11)).Render(name)
+		}
+		names = append(names, name)
 	}
-	return lipgloss.NewStyle().Border(lipgloss.NormalBorder(), true).Render(strings.Join(names, "\n"))
+
+	if focus == focusBranch {
+		return lipgloss.NewStyle().
+			Border(lipgloss.NormalBorder(), true).
+			BorderForeground(lipgloss.ANSIColor(222)).
+			Render(strings.Join(names, "\n"))
+	}
+
+	return lipgloss.NewStyle().
+		Border(lipgloss.NormalBorder(), true).
+		Render(strings.Join(names, "\n"))
 }

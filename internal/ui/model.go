@@ -2,16 +2,31 @@
 package ui
 
 import (
+	"bubblegit/internal/git"
+
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 )
+
+const (
+	focusBranch = iota
+	focusStag
+	focusLog
+	focusStash
+	focusCount
+)
+
+type branchesMsg []git.BranchInfo
 
 type Model struct {
 	dir string
 
 	branch string
 
-	diff viewport.Model
+	focus       int
+	branchFocus int
+	branches    []git.BranchInfo
+	diff        viewport.Model
 
 	ready    bool
 	quitting bool
@@ -24,5 +39,8 @@ func NewModel(dir string) Model {
 }
 
 func (m Model) Init() tea.Cmd {
-	return nil
+	return func() tea.Msg {
+		branches, _ := git.Branches(m.dir)
+		return branchesMsg(branches)
+	}
 }
