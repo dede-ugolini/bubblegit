@@ -106,6 +106,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.focusInput = true
 				return m, textinput.Blink
 			}
+
+		case "enter":
+			if m.focus == focusBranch && len(m.branches) > 0 {
+				return m, func() tea.Msg {
+					err := git.Checkout(m.dir, m.branches[m.branchFocus].Name)
+					if err != nil {
+						return errMsg{err}
+					}
+					branches, err := git.Branches(m.dir)
+					if err != nil {
+						return errMsg{err}
+					}
+					return branchesMsg(branches)
+				}
+			}
 		}
 	}
 
