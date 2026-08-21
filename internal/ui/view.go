@@ -23,6 +23,9 @@ func (m Model) View() tea.View {
 
 	var b strings.Builder
 	b.WriteString(renderBranches(m.branches, m.branchFocus, m.focus))
+	b.WriteString("\n")
+	b.WriteString(renderFooter(m.focus))
+
 	if m.err != nil {
 		b.WriteString("\n")
 		b.WriteString(errStyle.Render(m.err.Error()))
@@ -54,4 +57,13 @@ func renderBranches(branches []git.BranchInfo, idx, focus int) string {
 	return lipgloss.NewStyle().
 		Border(lipgloss.NormalBorder(), true).
 		Render(strings.Join(names, "\n"))
+}
+
+func renderFooter(focus int) string {
+	helpStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	switch focus {
+	case focusBranch:
+		return helpStyle.Render("↑/k ↓/j move · enter checkout · n new branch · d delete · q quit")
+	}
+	return helpStyle.Render("↑/k ↓/j move · enter checkout · n new branch · d delete · q quit")
 }
