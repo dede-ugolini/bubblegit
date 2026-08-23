@@ -18,12 +18,15 @@ const (
 )
 
 type (
+	filesMsg    []git.FileStatus
 	branchesMsg []git.BranchInfo
 	errMsg      struct{ err error }
 )
 
 type Model struct {
 	dir string
+
+	files []git.FileStatus
 
 	focus       int
 	branchFocus int
@@ -47,11 +50,20 @@ func NewModel(dir string) Model {
 }
 
 func (m Model) Init() tea.Cmd {
-	return func() tea.Msg {
-		branches, err := git.Branches(m.dir)
-		if err != nil {
-			return errMsg{err}
-		}
-		return branchesMsg(branches)
-	}
+	return tea.Batch(
+		func() tea.Msg {
+			files, err := git.Status(m.dir)
+			if err != nil {
+				return errMsg{err}
+			}
+			return filesMsg(files)
+		},
+		func() tea.Msg {
+			branches, err := git.Branches(m.dir)
+			if err != nil {
+				return errMsg{err}
+			}
+			return branchesMsg(branches)
+		},
+	)
 }

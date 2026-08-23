@@ -3,21 +3,11 @@ package main
 import (
 	"fmt"
 	"os"
-	"os/exec"
-	"strings"
 
 	"bubblegit/internal/ui"
 
 	tea "charm.land/bubbletea/v2"
 )
-
-func Branch() (string, error) {
-	out, err := exec.Command("git", "branch", "--show-current").Output()
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimSpace(string(out)), nil
-}
 
 func main() {
 	dir, err := os.Getwd()

@@ -54,6 +54,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.err = msg.err
 		return m, nil
 
+	case filesMsg:
+		m.files = []git.FileStatus(msg)
+		return m, nil
+
 	case branchesMsg:
 		m.branches = []git.BranchInfo(msg)
 		return m, nil

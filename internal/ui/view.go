@@ -22,8 +22,13 @@ func (m Model) View() tea.View {
 	}
 
 	var b strings.Builder
+
+	b.WriteString(renderStag(m.files))
+	b.WriteString("\n")
+
 	b.WriteString(renderBranches(m.branches, m.branchFocus, m.focus))
 	b.WriteString("\n")
+
 	if m.focusInput {
 		b.WriteString(m.input.View())
 		b.WriteString("\n")
@@ -34,7 +39,17 @@ func (m Model) View() tea.View {
 		b.WriteString("\n")
 		b.WriteString(errStyle.Render(m.err.Error()))
 	}
-	return tea.NewView(b.String())
+	v := tea.NewView(b.String())
+	v.AltScreen = true
+	return v
+}
+
+func renderStag(files []git.FileStatus) string {
+	var s []string
+	for _, f := range files {
+		s = append(s, f.Path)
+	}
+	return lipgloss.NewStyle().Border(lipgloss.NormalBorder(), true).Render(strings.Join(s, "\n"))
 }
 
 func renderBranches(branches []git.BranchInfo, idx, focus int) string {
