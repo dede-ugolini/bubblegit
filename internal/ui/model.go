@@ -31,8 +31,9 @@ type Model struct {
 	diff        viewport.Model
 	err         error
 
-	input      textinput.Model
-	focusInput bool
+	input        textinput.Model
+	focusInput   bool
+	renameBranch string
 
 	ready    bool
 	quitting bool

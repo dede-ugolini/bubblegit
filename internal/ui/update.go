@@ -13,18 +13,24 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			switch key.String() {
 			case "enter":
 				name := m.input.Value()
+				old := m.renameBranch
 				m.focusInput = false
+				m.renameBranch = ""
 				if name == "" {
 					return m, nil
 				}
 				return m, func() tea.Msg {
-					err := git.CreateBranch(m.dir, name)
-					if err != nil {
-						return errMsg{err}
-					}
-					err = git.Checkout(m.dir, name)
-					if err != nil {
-						return errMsg{err}
+					if old != "" {
+						if err := git.RenameBranch(m.dir, old, name); err != nil {
+							return errMsg{err}
+						}
+					} else {
+						if err := git.CreateBranch(m.dir, name); err != nil {
+							return errMsg{err}
+						}
+						if err := git.Checkout(m.dir, name); err != nil {
+							return errMsg{err}
+						}
 					}
 					branches, err := git.Branches(m.dir)
 					if err != nil {
@@ -102,6 +108,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.input.SetValue("")
 				m.input.Prompt = "branch> "
 				m.input.Placeholder = "new branch name"
+				m.input.Focus()
+				m.focusInput = true
+				return m, textinput.Blink
+			}
+
+		case "r":
+			if m.focus == focusBranch && len(m.branches) > 0 {
+				old := m.branches[m.branchFocus].Name
+				m.renameBranch = old
+				m.input.SetWidth(20)
+				m.input.CharLimit = 20
+				m.input.SetValue(old)
+				m.input.Prompt = "rename> "
+				m.input.Placeholder = "new name"
 				m.input.Focus()
 				m.focusInput = true
 				return m, textinput.Blink

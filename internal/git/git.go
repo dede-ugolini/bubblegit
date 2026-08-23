@@ -142,3 +142,14 @@ func DeleteBranch(dir, branch string) error {
 	}
 	return nil
 }
+
+// RenameBranch rename a branch
+func RenameBranch(dir, oldName, newName string) error {
+	cmd := exec.Command("git", "branch", "-m", oldName, newName)
+	cmd.Dir = dir
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("%s", strings.TrimSpace(string(out)))
+	}
+	return nil
+}
