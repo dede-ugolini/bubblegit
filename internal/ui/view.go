@@ -47,9 +47,11 @@ func (m Model) View() tea.View {
 func renderStag(files []git.FileStatus) string {
 	var s []string
 	for _, f := range files {
-		s = append(s, f.Path)
+		status := lipgloss.NewStyle().Foreground(lipgloss.ANSIColor(lipgloss.Red)).Render(string(f.Index) + string(f.Worktree))
+		s = append(s, status+" "+f.Path)
 	}
-	return lipgloss.NewStyle().Border(lipgloss.NormalBorder(), true).Render(strings.Join(s, "\n"))
+	style := lipgloss.NewStyle().Border(lipgloss.NormalBorder(), true)
+	return style.Render(strings.Join(s, "\n"))
 }
 
 func renderBranches(branches []git.BranchInfo, idx, focus int) string {
