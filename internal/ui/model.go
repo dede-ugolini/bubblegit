@@ -50,6 +50,10 @@ func NewModel(dir string) Model {
 }
 
 func (m Model) Init() tea.Cmd {
+	return m.Refresh()
+}
+
+func (m Model) Refresh() tea.Cmd {
 	return tea.Batch(
 		func() tea.Msg {
 			files, err := git.Status(m.dir)
