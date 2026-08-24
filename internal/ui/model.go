@@ -14,6 +14,7 @@ const (
 	focusBranch
 	focusLog
 	focusStash
+	focusDiff
 	focusCount
 )
 
@@ -21,6 +22,7 @@ type (
 	filesMsg    []git.FileStatus
 	branchesMsg []git.BranchInfo
 	logMsg      []git.LogEntry
+	diffMsg     struct{ diff string }
 	errMsg      struct{ err error }
 )
 

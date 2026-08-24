@@ -296,3 +296,13 @@ func Log(dir, rev string, limit int) ([]LogEntry, error) {
 	}
 	return entries, nil
 }
+
+func Show(dir, hash string) (string, error) {
+	cmd := exec.Command("git", "show", "--color=always", "--stat", "--patch", hash)
+	cmd.Dir = dir
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return string(""), err
+	}
+	return string(out), nil
+}

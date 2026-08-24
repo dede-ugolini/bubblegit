@@ -42,9 +42,25 @@ func (m Model) View() tea.View {
 		b.WriteString("\n")
 		b.WriteString(errStyle.Render(m.err.Error()))
 	}
-	v := tea.NewView(b.String())
+	v := tea.NewView(
+		lipgloss.JoinHorizontal(
+			lipgloss.Left,
+			b.String(), m.renderDiff(),
+		))
 	v.AltScreen = true
 	return v
+}
+
+func (m *Model) renderDiff() string {
+	if m.focus == focusDiff {
+		return lipgloss.NewStyle().
+			Border(lipgloss.NormalBorder(), true).
+			BorderForeground(lipgloss.ANSIColor(222)).
+			Render(m.diff.View())
+	}
+	return lipgloss.NewStyle().
+		Border(lipgloss.NormalBorder(), true).
+		Render(m.diff.View())
 }
 
 func renderFiles(files []git.FileStatus, idx, focus int) string {

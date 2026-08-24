@@ -66,6 +66,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.log = []git.LogEntry(msg)
 		return m, nil
 
+	case diffMsg:
+		m.diff.SetContent(msg.diff)
+		return m, nil
+
 	case tea.WindowSizeMsg:
 		m.diff.SetHeight(msg.Height)
 		m.diff.SetWidth(msg.Width / 2)
@@ -90,6 +94,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case focusLog:
 				m.moveLog(-1)
 			}
+			return m, m.showDiff()
 
 		case "down", "j":
 			switch m.focus {
@@ -100,6 +105,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case focusLog:
 				m.moveLog(1)
 			}
+			return m, m.showDiff()
 
 		case "d":
 			if m.focus == focusBranch && len(m.branches) > 0 {
@@ -233,6 +239,25 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	return m, nil
+}
+
+func (m Model) showDiff() tea.Cmd {
+	return func() tea.Msg {
+		switch m.focus {
+		case focusStag:
+		case focusBranch:
+		case focusLog:
+			if len(m.log) == 0 {
+				return diffMsg{}
+			}
+			diff, err := git.Show(m.dir, m.log[m.idxLog].Hash)
+			if err != nil {
+				return errMsg{err}
+			}
+			return diffMsg{diff}
+		}
+		return nil
+	}
 }
 
 func (m *Model) moveFile(delta int) {
