@@ -105,6 +105,16 @@ func Reset(dir, path string) error {
 	return nil
 }
 
+func ResetAll(dir string) error {
+	cmd := exec.Command("git", "reset")
+	cmd.Dir = dir
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("%s", strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
 func Restore(dir, path string) error {
 	cmd := exec.Command("git", "restore", "--", path)
 	cmd.Dir = dir
@@ -139,6 +149,16 @@ func (f FileStatus) Staged() bool {
 // (including being an untracked file).
 func (f FileStatus) Unstaged() bool {
 	return f.Worktree != ' ' || (f.Index == '?' && f.Worktree == '?')
+}
+
+// AllStaged reports wheter all entrys
+func AllStaged(files []FileStatus) bool {
+	for _, f := range files {
+		if !f.Staged() {
+			return false
+		}
+	}
+	return true
 }
 
 type BranchInfo struct {

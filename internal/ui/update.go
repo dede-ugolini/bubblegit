@@ -197,15 +197,28 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "a":
 			if m.focus == focusStag && len(m.files) > 0 {
 				return m, func() tea.Msg {
-					err := git.AddAll(m.dir)
-					if err != nil {
-						return errMsg{err}
+					if git.AllStaged(m.files) {
+						err := git.ResetAll(m.dir)
+						if err != nil {
+							return errMsg{err}
+						}
+						files, err := git.Status(m.dir)
+						if err != nil {
+							return errMsg{err: err}
+						}
+						return filesMsg(files)
+
+					} else {
+						err := git.AddAll(m.dir)
+						if err != nil {
+							return errMsg{err}
+						}
+						files, err := git.Status(m.dir)
+						if err != nil {
+							return errMsg{err: err}
+						}
+						return filesMsg(files)
 					}
-					files, err := git.Status(m.dir)
-					if err != nil {
-						return errMsg{err: err}
-					}
-					return filesMsg(files)
 				}
 			}
 		}
