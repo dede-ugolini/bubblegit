@@ -115,6 +115,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						if err != nil {
 							return errMsg{err}
 						}
+					} else {
+						err := git.Restore(m.dir, m.files[m.idxFiles].Path)
+						if err != nil {
+							return errMsg{err}
+						}
 					}
 					files, err := git.Status(m.dir)
 					if err != nil {
