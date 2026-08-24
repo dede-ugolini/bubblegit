@@ -77,7 +77,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "tab":
 			m.focus = (m.focus + 1) % focusCount
 
-		case "up":
+		case "up", "k":
 			switch m.focus {
 			case focusBranch:
 				m.moveBranch(-1)
@@ -85,7 +85,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.moveFile(-1)
 			}
 
-		case "down":
+		case "down", "j":
 			switch m.focus {
 			case focusBranch:
 				m.moveBranch(1)

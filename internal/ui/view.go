@@ -127,7 +127,7 @@ func renderFooter(focus int) string {
 	helpStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 	switch focus {
 	case focusStag:
-		return helpStyle.Render("↑/k ↓/j move · <space> stag · q quit")
+		return helpStyle.Render("↑/k ↓/j move · <space> stag · a stag/unstag all · q quit")
 	case focusBranch:
 		return helpStyle.Render("↑/k ↓/j move · space stage · enter checkout · n new branch · r rename · d delete · q quit")
 	default:
