@@ -34,6 +34,8 @@ type Model struct {
 	diff        viewport.Model
 	err         error
 
+	idxFiles int
+
 	input        textinput.Model
 	focusInput   bool
 	renameBranch string

@@ -81,12 +81,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			switch m.focus {
 			case focusBranch:
 				m.moveBranch(-1)
+			case focusStag:
+				m.moveFile(-1)
 			}
 
 		case "down":
 			switch m.focus {
 			case focusBranch:
 				m.moveBranch(1)
+			case focusStag:
+				m.moveFile(1)
 			}
 
 		case "d":
@@ -149,6 +153,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	return m, nil
+}
+
+func (m *Model) moveFile(delta int) {
+	m.idxFiles += delta
+
+	if m.idxFiles < 0 {
+		m.idxFiles = 0
+	}
+
+	if m.idxFiles >= len(m.files) {
+		m.idxFiles = len(m.files) - 1
+	}
 }
 
 func (m *Model) moveBranch(delta int) {

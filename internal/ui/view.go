@@ -23,7 +23,7 @@ func (m Model) View() tea.View {
 
 	var b strings.Builder
 
-	b.WriteString(renderFiles(m.files, m.focus))
+	b.WriteString(renderFiles(m.files, m.idxFiles, m.focus))
 	b.WriteString("\n")
 
 	b.WriteString(renderBranches(m.branches, m.branchFocus, m.focus))
@@ -44,16 +44,17 @@ func (m Model) View() tea.View {
 	return v
 }
 
-func renderFiles(files []git.FileStatus, focus int) string {
+func renderFiles(files []git.FileStatus, idx, focus int) string {
 	var s []string
 	red := lipgloss.NewStyle().Foreground(lipgloss.ANSIColor(lipgloss.Red))
 	green := lipgloss.NewStyle().Foreground(lipgloss.ANSIColor(lipgloss.Green))
 	yellow := lipgloss.NewStyle().Foreground(lipgloss.ANSIColor(lipgloss.Yellow))
+	sel := lipgloss.NewStyle().Background(lipgloss.ANSIColor(11))
 
-	for _, f := range files {
+	for i, f := range files {
 		stag := string(f.Index)
 		worktree := string(f.Worktree)
-		path := string(f.Path)
+		path := f.Path
 
 		switch {
 		case f.Untracked():
@@ -73,7 +74,16 @@ func renderFiles(files []git.FileStatus, focus int) string {
 			worktree = red.Render(worktree)
 		}
 
-		s = append(s, stag+worktree+" "+path)
+		space := " "
+
+		if i == idx && focus == focusStag {
+			stag = sel.Render(stag)
+			worktree = sel.Render(worktree)
+			space = sel.Render(space)
+			path = sel.Render(path)
+		}
+
+		s = append(s, stag+worktree+space+path)
 	}
 
 	if focus == focusStag {
