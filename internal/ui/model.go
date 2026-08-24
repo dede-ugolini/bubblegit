@@ -10,8 +10,8 @@ import (
 )
 
 const (
-	focusBranch = iota
-	focusStag
+	focusStag = iota
+	focusBranch
 	focusLog
 	focusStash
 	focusCount
@@ -27,16 +27,19 @@ type (
 type Model struct {
 	dir string
 
-	files []git.FileStatus
-	log   []git.LogEntry
+	files    []git.FileStatus
+	idxFiles int
+
+	branches []git.BranchInfo
+	// idxBranch int
+
+	log    []git.LogEntry
+	idxLog int
 
 	focus       int
 	branchFocus int
-	branches    []git.BranchInfo
 	diff        viewport.Model
 	err         error
-
-	idxFiles int
 
 	input        textinput.Model
 	focusInput   bool

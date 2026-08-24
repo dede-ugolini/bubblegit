@@ -30,7 +30,7 @@ func (m Model) View() tea.View {
 	b.WriteString("\n")
 
 	b.WriteString("\n")
-	b.WriteString(renderLog(m.log))
+	b.WriteString(renderLog(m.log, m.idxLog, m.focus))
 
 	if m.focusInput {
 		b.WriteString(m.input.View())
@@ -126,10 +126,20 @@ func renderBranches(branches []git.BranchInfo, idx, focus int) string {
 		Render(strings.Join(names, "\n"))
 }
 
-func renderLog(log []git.LogEntry) string {
+func renderLog(log []git.LogEntry, idx, focus int) string {
 	var entrys []string
-	for _, l := range log {
+	for i, l := range log {
+		if i == idx && focus == focusLog {
+			entrys = append(entrys, lipgloss.NewStyle().Background(lipgloss.ANSIColor(9)).Render(l.ShortHash))
+			continue
+		}
 		entrys = append(entrys, l.ShortHash)
+	}
+	if focus == focusLog {
+		return lipgloss.NewStyle().
+			Border(lipgloss.NormalBorder(), true).
+			BorderForeground(lipgloss.ANSIColor(222)).
+			Render(strings.Join(entrys, "\n"))
 	}
 	return lipgloss.NewStyle().Border(lipgloss.NormalBorder(), true).Render(strings.Join(entrys, "\n"))
 }
