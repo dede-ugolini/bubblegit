@@ -91,6 +91,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "tab":
 			m.focus = (m.focus + 1) % focusCount
 
+		case "0":
+			m.focus = focusDiff
+
+		case "1":
+			m.focus = focusStag
+
+		case "2":
+			m.focus = focusBranch
+
+		case "3":
+			m.focus = focusLog
+
+		case "4":
+			m.focus = focusStash
+
 		case "up", "k":
 			switch m.focus {
 			case focusStag:
