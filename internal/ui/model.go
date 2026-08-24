@@ -20,6 +20,7 @@ const (
 type (
 	filesMsg    []git.FileStatus
 	branchesMsg []git.BranchInfo
+	logMsg      []git.LogEntry
 	errMsg      struct{ err error }
 )
 
@@ -27,6 +28,7 @@ type Model struct {
 	dir string
 
 	files []git.FileStatus
+	log   []git.LogEntry
 
 	focus       int
 	branchFocus int
@@ -70,6 +72,13 @@ func (m Model) Refresh() tea.Cmd {
 				return errMsg{err}
 			}
 			return branchesMsg(branches)
+		},
+		func() tea.Msg {
+			log, err := git.Log(m.dir, "HEAD", 20)
+			if err != nil {
+				return errMsg{err}
+			}
+			return logMsg(log)
 		},
 	)
 }

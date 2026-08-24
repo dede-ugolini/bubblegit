@@ -62,6 +62,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.branches = []git.BranchInfo(msg)
 		return m, nil
 
+	case logMsg:
+		m.log = []git.LogEntry(msg)
+		return m, nil
+
 	case tea.WindowSizeMsg:
 		m.diff.SetHeight(msg.Height)
 		m.diff.SetWidth(msg.Width / 2)

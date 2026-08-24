@@ -17,6 +17,15 @@ type FileStatus struct {
 	OrigPath string
 }
 
+// LogEntry is one commit as reported by `git log`.
+type LogEntry struct {
+	Hash      string
+	ShortHash string
+	Author    string
+	Date      string
+	Subject   string
+}
+
 // field/record separators unlikely to appear in commit metadata.
 const (
 	logFieldSep  = "\x1f"
@@ -241,4 +250,49 @@ func RenameBranch(dir, oldName, newName string) error {
 		return fmt.Errorf("%s", strings.TrimSpace(string(out)))
 	}
 	return nil
+}
+
+func Log(dir, rev string, limit int) ([]LogEntry, error) {
+	format := strings.Join(
+		[]string{"%H", "%h", "%an", "%ad", "%s"}, logFieldSep,
+	) + logRecordSep
+	cmd := exec.Command(
+		"git",
+		"log",
+		rev,
+		"--date=short",
+		"--pretty=format:"+format,
+		fmt.Sprintf("-n%d", limit),
+	)
+	cmd.Dir = dir
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		if strings.Contains(err.Error(), "does not have any commits yet") ||
+			strings.Contains(err.Error(), "unknown revision") {
+			return nil, nil
+		}
+		return nil, err
+	}
+	if string(out) == "" {
+		return nil, nil
+	}
+	var entries []LogEntry
+	for rec := range strings.SplitSeq(string(out), logRecordSep) {
+		rec = strings.TrimPrefix(rec, "\n")
+		if rec == "" {
+			continue
+		}
+		f := strings.Split(rec, logFieldSep)
+		if len(f) < 5 {
+			continue
+		}
+		entries = append(entries, LogEntry{
+			Hash:      f[0],
+			ShortHash: f[1],
+			Author:    f[2],
+			Date:      f[3],
+			Subject:   f[4],
+		})
+	}
+	return entries, nil
 }
