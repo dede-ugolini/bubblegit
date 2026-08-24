@@ -26,7 +26,7 @@ func (m Model) View() tea.View {
 	b.WriteString(m.renderFiles())
 	b.WriteString("\n")
 
-	b.WriteString(renderBranches(m.branches, m.idxBranch, m.focus))
+	b.WriteString(m.renderBranches())
 	b.WriteString("\n")
 
 	b.WriteString("\n")
@@ -121,29 +121,33 @@ func (m *Model) renderFiles() string {
 		Render(strings.Join(s, "\n"))
 }
 
-func renderBranches(branches []git.BranchInfo, idx, focus int) string {
+func (m *Model) renderBranches() string {
 	var names []string
 
-	for i, b := range branches {
+	for i, b := range m.branches {
 		name := b.Name
 		if b.Current {
 			name = lipgloss.NewStyle().Foreground(lipgloss.ANSIColor(11)).Render(name)
 		}
-		if idx == i {
+		if m.idxBranch == i {
 			name = lipgloss.NewStyle().Background(lipgloss.ANSIColor(9)).Render(name)
 		}
 		names = append(names, name)
 	}
 
-	if focus == focusBranch {
+	if m.focus == focusBranch {
 		return lipgloss.NewStyle().
 			Border(lipgloss.NormalBorder(), true).
 			BorderForeground(lipgloss.ANSIColor(222)).
+			Width(m.branchWidth).
+			Height(m.branchHeight).
 			Render(strings.Join(names, "\n"))
 	}
 
 	return lipgloss.NewStyle().
 		Border(lipgloss.NormalBorder(), true).
+		Width(m.branchWidth).
+		Height(m.branchHeight).
 		Render(strings.Join(names, "\n"))
 }
 
