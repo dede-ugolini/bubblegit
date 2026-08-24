@@ -110,6 +110,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.moveBranch(1)
 			case focusLog:
 				m.moveLog(1)
+			case focusDiff:
+				var cmd tea.Cmd
+				m.diff, cmd = m.diff.Update(msg)
+				return m, cmd
+
 			}
 			return m, m.showDiff()
 
@@ -241,6 +246,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 				}
 			}
+		case "pgup":
+			m.diff.ScrollUp(8)
+		case "pgdown":
+			m.diff.ScrollDown(8)
 		}
 	}
 
