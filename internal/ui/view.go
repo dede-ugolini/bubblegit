@@ -34,7 +34,6 @@ func (m Model) View() tea.View {
 		b.WriteString(m.input.View())
 		b.WriteString("\n")
 	}
-	b.WriteString(renderFooter(m.focus))
 
 	if m.err != nil {
 		b.WriteString("\n")
@@ -44,7 +43,7 @@ func (m Model) View() tea.View {
 		lipgloss.JoinHorizontal(
 			lipgloss.Left,
 			b.String(), m.renderDiff(),
-		))
+		) + "\n" + renderFooter(m.focus))
 	v.AltScreen = true
 	return v
 }
