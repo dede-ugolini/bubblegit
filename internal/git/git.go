@@ -105,6 +105,16 @@ func Reset(dir, path string) error {
 	return nil
 }
 
+func RestoreUntracked(dir, path string) error {
+	cmd := exec.Command("git", "clean", "-fd", path)
+	cmd.Dir = dir
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("%s", strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
 // Untracked reports whether this file is untracked by git.
 func (f FileStatus) Untracked() bool {
 	return f.Index == '?' && f.Worktree == '?'

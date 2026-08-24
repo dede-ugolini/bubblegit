@@ -108,6 +108,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					return branchesMsg(branches)
 				}
 			}
+			if m.focus == focusStag && len(m.branches) > 0 {
+				return m, func() tea.Msg {
+					if m.files[m.idxFiles].Untracked() {
+						err := git.RestoreUntracked(m.dir, m.files[m.idxFiles].Path)
+						if err != nil {
+							return errMsg{err}
+						}
+					}
+					files, err := git.Status(m.dir)
+					if err != nil {
+						return errMsg{err}
+					}
+					return filesMsg(files)
+				}
+			}
 
 		case "n":
 			if m.focus == focusBranch {
