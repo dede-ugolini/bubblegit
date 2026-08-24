@@ -149,6 +149,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					return branchesMsg(branches)
 				}
 			}
+		case "space":
+			if m.focus == focusStag && len(m.files) > 0 {
+				return m, func() tea.Msg {
+					err := git.Add(m.dir, m.files[m.idxFiles].Path)
+					if err != nil {
+						return errMsg{err: err}
+					}
+					files, err := git.Status(m.dir)
+					if err != nil {
+						return errMsg{err: err}
+					}
+					return filesMsg(files)
+				}
+			}
 		}
 	}
 

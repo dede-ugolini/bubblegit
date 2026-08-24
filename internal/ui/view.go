@@ -125,5 +125,12 @@ func renderBranches(branches []git.BranchInfo, idx, focus int) string {
 
 func renderFooter(focus int) string {
 	helpStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
-	return helpStyle.Render("↑/k ↓/j move · enter checkout · n new branch · r rename · d delete · q quit")
+	switch focus {
+	case focusStag:
+		return helpStyle.Render("↑/k ↓/j move · <space> stag · q quit")
+	case focusBranch:
+		return helpStyle.Render("↑/k ↓/j move · space stage · enter checkout · n new branch · r rename · d delete · q quit")
+	default:
+		return ""
+	}
 }
