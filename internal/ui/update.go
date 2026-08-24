@@ -103,7 +103,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case "d":
 			if m.focus == focusBranch && len(m.branches) > 0 {
-				branch := m.branches[m.branchFocus].Name
+				branch := m.branches[m.idxBranch].Name
 				return m, func() tea.Msg {
 					err := git.DeleteBranch(m.dir, branch)
 					if err != nil {
@@ -151,7 +151,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case "r":
 			if m.focus == focusBranch && len(m.branches) > 0 {
-				old := m.branches[m.branchFocus].Name
+				old := m.branches[m.idxBranch].Name
 				m.renameBranch = old
 				m.input.SetWidth(20)
 				m.input.CharLimit = 20
@@ -166,7 +166,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "enter":
 			if m.focus == focusBranch && len(m.branches) > 0 {
 				return m, func() tea.Msg {
-					err := git.Checkout(m.dir, m.branches[m.branchFocus].Name)
+					err := git.Checkout(m.dir, m.branches[m.idxBranch].Name)
 					if err != nil {
 						return errMsg{err}
 					}
@@ -248,14 +248,14 @@ func (m *Model) moveFile(delta int) {
 }
 
 func (m *Model) moveBranch(delta int) {
-	m.branchFocus += delta
+	m.idxBranch += delta
 
-	if m.branchFocus < 0 {
-		m.branchFocus = 0
+	if m.idxBranch < 0 {
+		m.idxBranch = 0
 	}
 
-	if m.branchFocus >= len(m.branches) {
-		m.branchFocus = len(m.branches) - 1
+	if m.idxBranch >= len(m.branches) {
+		m.idxBranch = len(m.branches) - 1
 	}
 }
 

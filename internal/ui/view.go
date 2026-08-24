@@ -26,7 +26,7 @@ func (m Model) View() tea.View {
 	b.WriteString(renderFiles(m.files, m.idxFiles, m.focus))
 	b.WriteString("\n")
 
-	b.WriteString(renderBranches(m.branches, m.branchFocus, m.focus))
+	b.WriteString(renderBranches(m.branches, m.idxBranch, m.focus))
 	b.WriteString("\n")
 
 	b.WriteString("\n")

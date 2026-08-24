@@ -30,16 +30,15 @@ type Model struct {
 	files    []git.FileStatus
 	idxFiles int
 
-	branches []git.BranchInfo
-	// idxBranch int
+	branches  []git.BranchInfo
+	idxBranch int
 
 	log    []git.LogEntry
 	idxLog int
 
-	focus       int
-	branchFocus int
-	diff        viewport.Model
-	err         error
+	focus int
+	diff  viewport.Model
+	err   error
 
 	input        textinput.Model
 	focusInput   bool
