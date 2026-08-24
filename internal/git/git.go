@@ -72,6 +72,19 @@ func parseStatus(out string) ([]FileStatus, error) {
 	return files, nil
 }
 
+func (f FileStatus) Untracked() bool {
+	return f.Index == '?' && f.Worktree == '?'
+}
+
+// Staged reports whether this entry has staged changes to commit.
+func (f FileStatus) Staged() bool {
+	return f.Index != ' ' && f.Index != '?'
+}
+
+func (f FileStatus) Unstaged() bool {
+	return f.Worktree != ' ' || (f.Index == '?' && f.Worktree == '?')
+}
+
 type BranchInfo struct {
 	Name    string
 	Current bool

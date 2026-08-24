@@ -23,7 +23,7 @@ func (m Model) View() tea.View {
 
 	var b strings.Builder
 
-	b.WriteString(renderStag(m.files))
+	b.WriteString(renderFiles(m.files, m.focus))
 	b.WriteString("\n")
 
 	b.WriteString(renderBranches(m.branches, m.branchFocus, m.focus))
@@ -44,12 +44,45 @@ func (m Model) View() tea.View {
 	return v
 }
 
-func renderStag(files []git.FileStatus) string {
+func renderFiles(files []git.FileStatus, focus int) string {
 	var s []string
+	red := lipgloss.NewStyle().Foreground(lipgloss.ANSIColor(lipgloss.Red))
+	green := lipgloss.NewStyle().Foreground(lipgloss.ANSIColor(lipgloss.Green))
+	yellow := lipgloss.NewStyle().Foreground(lipgloss.ANSIColor(lipgloss.Yellow))
+
 	for _, f := range files {
-		status := lipgloss.NewStyle().Foreground(lipgloss.ANSIColor(lipgloss.Red)).Render(string(f.Index) + string(f.Worktree))
-		s = append(s, status+" "+f.Path)
+		stag := string(f.Index)
+		worktree := string(f.Worktree)
+		path := string(f.Path)
+
+		switch {
+		case f.Untracked():
+			stag = red.Render(stag)
+			worktree = red.Render(worktree)
+
+		case f.Staged():
+			stag = green.Render(stag)
+			if f.Worktree == 'M' {
+				worktree = red.Render(worktree)
+				path = yellow.Render(path)
+			} else {
+				path = green.Render(path)
+			}
+
+		case f.Unstaged():
+			worktree = red.Render(worktree)
+		}
+
+		s = append(s, stag+worktree+" "+path)
 	}
+
+	if focus == focusStag {
+		return lipgloss.NewStyle().
+			Border(lipgloss.NormalBorder(), true).
+			BorderForeground(lipgloss.ANSIColor(222)).
+			Render(strings.Join(s, "\n"))
+	}
+
 	style := lipgloss.NewStyle().Border(lipgloss.NormalBorder(), true)
 	return style.Render(strings.Join(s, "\n"))
 }
