@@ -3,8 +3,6 @@ package ui
 import (
 	"strings"
 
-	"bubblegit/internal/git"
-
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 )
@@ -30,7 +28,7 @@ func (m Model) View() tea.View {
 	b.WriteString("\n")
 
 	b.WriteString("\n")
-	b.WriteString(renderLog(m.log, m.idxLog, m.focus))
+	b.WriteString(m.renderLog())
 
 	if m.focusInput {
 		b.WriteString(m.input.View())
@@ -151,22 +149,28 @@ func (m *Model) renderBranches() string {
 		Render(strings.Join(names, "\n"))
 }
 
-func renderLog(log []git.LogEntry, idx, focus int) string {
+func (m *Model) renderLog() string {
 	var entrys []string
-	for i, l := range log {
-		if i == idx && focus == focusLog {
+	for i, l := range m.log {
+		if i == m.idxLog && m.focus == focusLog {
 			entrys = append(entrys, lipgloss.NewStyle().Background(lipgloss.ANSIColor(9)).Render(l.ShortHash))
 			continue
 		}
 		entrys = append(entrys, l.ShortHash)
 	}
-	if focus == focusLog {
+	if m.focus == focusLog {
 		return lipgloss.NewStyle().
 			Border(lipgloss.NormalBorder(), true).
 			BorderForeground(lipgloss.ANSIColor(222)).
+			Width(m.logWidth).
+			Height(m.logHeight).
 			Render(strings.Join(entrys, "\n"))
 	}
-	return lipgloss.NewStyle().Border(lipgloss.NormalBorder(), true).Render(strings.Join(entrys, "\n"))
+	return lipgloss.NewStyle().
+		Border(lipgloss.NormalBorder(), true).
+		Width(m.logWidth).
+		Height(m.logHeight).
+		Render(strings.Join(entrys, "\n"))
 }
 
 func renderFooter(focus int) string {

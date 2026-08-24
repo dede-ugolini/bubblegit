@@ -39,8 +39,10 @@ type Model struct {
 	branchHeight int
 	branchWidth  int
 
-	log    []git.LogEntry
-	idxLog int
+	log       []git.LogEntry
+	idxLog    int
+	logHeight int
+	logWidth  int
 
 	focus int
 	diff  viewport.Model
