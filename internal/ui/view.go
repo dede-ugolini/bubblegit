@@ -45,6 +45,7 @@ func (m Model) View() tea.View {
 			b.String(), m.renderDiff(),
 		) + "\n" + renderFooter(m.focus))
 	v.AltScreen = true
+	v.MouseMode = tea.MouseModeCellMotion
 	return v
 }
 

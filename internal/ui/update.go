@@ -70,6 +70,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.diff.SetContent(msg.diff)
 		return m, nil
 
+	case tea.MouseWheelMsg:
+		var cmd tea.Cmd
+		m.diff, cmd = m.diff.Update(msg)
+		return m, cmd
+
 	case tea.WindowSizeMsg:
 		m.filesHeight = msg.Height * 30 / 100
 		m.filesWidth = msg.Width * 40 / 100
