@@ -82,6 +82,16 @@ func Add(dir, path string) error {
 	return nil
 }
 
+func AddAll(dir string) error {
+	cmd := exec.Command("git", "add", "-A")
+	cmd.Dir = dir
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("%s", strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
 func Reset(dir, path string) error {
 	cmd := exec.Command("git", "reset", "--", path)
 	cmd.Dir = dir

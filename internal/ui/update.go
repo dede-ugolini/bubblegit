@@ -174,6 +174,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					return filesMsg(files)
 				}
 			}
+		case "a":
+			if m.focus == focusStag && len(m.files) > 0 {
+				return m, func() tea.Msg {
+					err := git.AddAll(m.dir)
+					if err != nil {
+						return errMsg{err}
+					}
+					files, err := git.Status(m.dir)
+					if err != nil {
+						return errMsg{err: err}
+					}
+					return filesMsg(files)
+				}
+			}
 		}
 	}
 
