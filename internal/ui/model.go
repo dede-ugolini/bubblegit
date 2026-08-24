@@ -29,11 +29,15 @@ type (
 type Model struct {
 	dir string
 
-	files    []git.FileStatus
-	idxFiles int
+	files       []git.FileStatus
+	idxFiles    int
+	filesHeight int
+	filesWidth  int
 
-	branches  []git.BranchInfo
-	idxBranch int
+	branches     []git.BranchInfo
+	idxBranch    int
+	branchHeight int
+	branchWidth  int
 
 	log    []git.LogEntry
 	idxLog int

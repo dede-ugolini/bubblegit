@@ -23,7 +23,7 @@ func (m Model) View() tea.View {
 
 	var b strings.Builder
 
-	b.WriteString(renderFiles(m.files, m.idxFiles, m.focus))
+	b.WriteString(m.renderFiles())
 	b.WriteString("\n")
 
 	b.WriteString(renderBranches(m.branches, m.idxBranch, m.focus))
@@ -63,14 +63,14 @@ func (m *Model) renderDiff() string {
 		Render(m.diff.View())
 }
 
-func renderFiles(files []git.FileStatus, idx, focus int) string {
+func (m *Model) renderFiles() string {
 	var s []string
 	red := lipgloss.NewStyle().Foreground(lipgloss.ANSIColor(lipgloss.Red))
 	green := lipgloss.NewStyle().Foreground(lipgloss.ANSIColor(lipgloss.Green))
 	yellow := lipgloss.NewStyle().Foreground(lipgloss.ANSIColor(lipgloss.Yellow))
 	sel := lipgloss.NewStyle().Background(lipgloss.ANSIColor(11))
 
-	for i, f := range files {
+	for i, f := range m.files {
 		stag := string(f.Index)
 		worktree := string(f.Worktree)
 		path := f.Path
@@ -95,7 +95,7 @@ func renderFiles(files []git.FileStatus, idx, focus int) string {
 
 		space := " "
 
-		if i == idx && focus == focusStag {
+		if i == m.idxFiles && m.focus == focusStag {
 			stag = sel.Render(stag)
 			worktree = sel.Render(worktree)
 			space = sel.Render(space)
@@ -105,15 +105,20 @@ func renderFiles(files []git.FileStatus, idx, focus int) string {
 		s = append(s, stag+worktree+space+path)
 	}
 
-	if focus == focusStag {
+	if m.focus == focusStag {
 		return lipgloss.NewStyle().
 			Border(lipgloss.NormalBorder(), true).
 			BorderForeground(lipgloss.ANSIColor(222)).
+			Width(m.filesWidth).
+			Height(m.filesHeight).
 			Render(strings.Join(s, "\n"))
 	}
 
-	style := lipgloss.NewStyle().Border(lipgloss.NormalBorder(), true)
-	return style.Render(strings.Join(s, "\n"))
+	return lipgloss.NewStyle().
+		Border(lipgloss.NormalBorder(), true).
+		Width(m.filesWidth).
+		Height(m.filesHeight).
+		Render(strings.Join(s, "\n"))
 }
 
 func renderBranches(branches []git.BranchInfo, idx, focus int) string {
