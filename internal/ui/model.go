@@ -3,6 +3,7 @@ package ui
 
 import (
 	"bubblegit/internal/git"
+	"time"
 
 	"charm.land/bubbles/v2/textinput"
 	"charm.land/bubbles/v2/viewport"
@@ -13,7 +14,6 @@ const (
 	focusStag = iota
 	focusBranch
 	focusLog
-	focusStash
 	focusDiff
 	focusCount
 )
@@ -24,6 +24,7 @@ type (
 	logMsg      []git.LogEntry
 	diffMsg     struct{ diff string }
 	errMsg      struct{ err error }
+	tickMsg     struct{}
 )
 
 type Model struct {
@@ -64,7 +65,13 @@ func NewModel(dir string) Model {
 }
 
 func (m Model) Init() tea.Cmd {
-	return m.Refresh()
+	return tea.Batch(m.Refresh(), tickCmd())
+}
+
+func tickCmd() tea.Cmd {
+	return tea.Tick(2*time.Second, func(time.Time) tea.Msg {
+		return tickMsg{}
+	})
 }
 
 func (m Model) Refresh() tea.Cmd {

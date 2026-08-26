@@ -54,6 +54,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.err = msg.err
 		return m, nil
 
+	case tickMsg:
+		return m, tea.Batch(m.Refresh(), tickCmd())
+
 	case filesMsg:
 		m.files = []git.FileStatus(msg)
 		return m, nil
@@ -107,9 +110,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case "3":
 			m.focus = focusLog
-
-		case "4":
-			m.focus = focusStash
 
 		case "up", "k":
 			switch m.focus {

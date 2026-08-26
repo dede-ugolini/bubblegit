@@ -201,10 +201,14 @@ func renderFooter(focus int) string {
 	helpStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 	switch focus {
 	case focusStag:
-		return helpStyle.Render("↑/k ↓/j move · <space> stag · a stag/unstag all · q quit")
+		return helpStyle.Render("↑/k ↓/j move · <space> stag · a stag/unstag all · d restore · 0 diff · 1 files · 2 branches · 3 log · q quit")
 	case focusBranch:
-		return helpStyle.Render("↑/k ↓/j move · space stage · enter checkout · n new branch · r rename · d delete · q quit")
+		return helpStyle.Render("↑/k ↓/j move · enter checkout · n new branch · r rename · d delete · 0 diff · 1 files · 2 branches · 3 log · q quit")
+	case focusLog:
+		return helpStyle.Render("↑/k ↓/j move · pgup/pgdown scroll · 0 diff · 1 files · 2 branches · 3 log · q quit")
+	case focusDiff:
+		return helpStyle.Render("↑/k ↓/j move · pgup/pgdown scroll · 0 diff · 1 files · 2 branches · 3 log · q quit")
 	default:
-		return ""
+		return helpStyle.Render("0 diff · 1 files · 2 branches · 3 log · q quit")
 	}
 }
