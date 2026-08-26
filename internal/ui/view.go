@@ -54,14 +54,21 @@ func (m *Model) renderDiff() string {
 		return lipgloss.NewStyle().
 			Border(lipgloss.NormalBorder(), true).
 			BorderForeground(lipgloss.ANSIColor(222)).
+			Height(m.diff.Height()).
+			Width(m.diff.Width()).
 			Render(m.diff.View())
 	}
 	return lipgloss.NewStyle().
 		Border(lipgloss.NormalBorder(), true).
+		Height(m.diff.Height()).
+		Width(m.diff.Width()).
 		Render(m.diff.View())
 }
 
 func (m *Model) renderFiles() string {
+	if m.filesHeight <= 0 || m.filesWidth <= 0 {
+		return ""
+	}
 	var s []string
 	red := lipgloss.NewStyle().Foreground(lipgloss.ANSIColor(lipgloss.Red))
 	green := lipgloss.NewStyle().Foreground(lipgloss.ANSIColor(lipgloss.Green))
@@ -120,6 +127,9 @@ func (m *Model) renderFiles() string {
 }
 
 func (m *Model) renderBranches() string {
+	if m.branchHeight <= 0 || m.branchWidth <= 0 {
+		return ""
+	}
 	var names []string
 
 	for i, b := range m.branches {
@@ -153,6 +163,10 @@ func (m *Model) renderLog() string {
 	// Border top+bottom eat 2 rows; without windowing, a log limit bigger
 	// than the panel's height renders every entry and grows the box past
 	// m.logHeight, throwing off the rest of the layout.
+	if m.logHeight <= 0 || m.logWidth <= 0 {
+		return ""
+	}
+
 	visible := m.logHeight - 2
 	if visible < 1 {
 		visible = 1

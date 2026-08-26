@@ -308,7 +308,7 @@ func Diff(dir, path string) (string, error) {
 	return string(out), nil
 }
 
-func DiffDelta(dir, path string) (string, error) {
+func DiffDelta(dir, path string, sideBySide bool, width int) (string, error) {
 	git := exec.Command("git", "diff", "--no-color", "--", path)
 	git.Dir = dir
 	diff, err := git.Output()
@@ -321,6 +321,9 @@ func DiffDelta(dir, path string) (string, error) {
 		"--paging=never",
 		"--line-numbers",
 	)
+	if sideBySide {
+		delta.Args = append(delta.Args, "--side-by-side", fmt.Sprintf("--width=%d", width))
+	}
 	delta.Stdin = bytes.NewReader(diff)
 
 	var output bytes.Buffer
@@ -332,7 +335,7 @@ func DiffDelta(dir, path string) (string, error) {
 	return output.String(), nil
 }
 
-func DiffBranchDelta(dir string) (string, error) {
+func DiffBranchDelta(dir string, sideBySide bool, width int) (string, error) {
 	git := exec.Command("git", "diff", "--color=always", "--stat", "--patch")
 	git.Dir = dir
 	diff, err := git.Output()
@@ -345,6 +348,9 @@ func DiffBranchDelta(dir string) (string, error) {
 		"--paging=never",
 		"--line-numbers",
 	)
+	if sideBySide {
+		delta.Args = append(delta.Args, "--side-by-side", fmt.Sprintf("--width=%d", width))
+	}
 	delta.Stdin = bytes.NewReader(diff)
 
 	var output bytes.Buffer
@@ -366,7 +372,7 @@ func Show(dir, hash string) (string, error) {
 	return string(out), nil
 }
 
-func ShowDelta(dir, path string) (string, error) {
+func ShowDelta(dir, path string, sideBySide bool, width int) (string, error) {
 	git := exec.Command("git", "show", "--color=always", "--stat", "--patch", path)
 	git.Dir = dir
 	diff, err := git.Output()
@@ -379,6 +385,9 @@ func ShowDelta(dir, path string) (string, error) {
 		"--paging=never",
 		"--line-numbers",
 	)
+	if sideBySide {
+		delta.Args = append(delta.Args, "--side-by-side", fmt.Sprintf("--width=%d", width))
+	}
 	delta.Stdin = bytes.NewReader(diff)
 
 	var output bytes.Buffer

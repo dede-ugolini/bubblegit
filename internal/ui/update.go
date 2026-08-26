@@ -79,6 +79,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 
 	case tea.WindowSizeMsg:
+		m.height = msg.Height
+		m.width = msg.Width
 		m.filesHeight = msg.Height * 30 / 100
 		m.filesWidth = msg.Width * 45 / 100
 		m.branchHeight = msg.Height * 15 / 100
@@ -266,6 +268,80 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 				}
 			}
+
+		case "+":
+			if !m.panelFullScreen {
+				m.panelFullScreen = true
+				switch m.focus {
+				case focusStag:
+					m.filesHeight = m.height
+					m.filesWidth = m.width
+
+					m.branchHeight = 0
+					m.branchWidth = 0
+
+					m.logHeight = 0
+					m.logWidth = 0
+
+					m.diff.SetHeight(0)
+					m.diff.SetWidth(0)
+				case focusBranch:
+					m.branchHeight = m.height
+					m.branchWidth = m.width
+
+					m.filesHeight = 0
+					m.filesWidth = 0
+
+					m.logHeight = 0
+					m.logWidth = 0
+
+					m.diff.SetHeight(0)
+					m.diff.SetWidth(0)
+				case focusLog:
+					m.logHeight = m.height
+					m.logWidth = m.width
+
+					m.filesHeight = 0
+					m.filesWidth = 0
+
+					m.branchHeight = 0
+					m.branchWidth = 0
+
+					m.diff.SetHeight(0)
+					m.diff.SetWidth(0)
+				case focusDiff:
+					m.diff.SetHeight(m.height)
+					m.diff.SetWidth(m.width)
+
+					m.filesHeight = 0
+					m.filesWidth = 0
+
+					m.branchHeight = 0
+					m.branchWidth = 0
+
+					m.logHeight = 0
+					m.logWidth = 0
+				}
+				return m, m.showDiff()
+			}
+
+		case "-":
+			if m.panelFullScreen {
+				m.panelFullScreen = false
+				m.filesHeight = m.height * 30 / 100
+				m.filesWidth = m.width * 45 / 100
+
+				m.branchHeight = m.height * 15 / 100
+				m.branchWidth = m.width * 45 / 100
+
+				m.logHeight = m.height * 30 / 100
+				m.logWidth = m.width * 45 / 100
+
+				m.diff.SetHeight(m.height * 90 / 100)
+				m.diff.SetWidth(m.width * 55 / 100)
+				return m, m.showDiff()
+			}
+
 		case "pgup":
 			m.diff.ScrollUp(8)
 		case "pgdown":
@@ -283,7 +359,7 @@ func (m Model) showDiff() tea.Cmd {
 			if len(m.files) <= 0 {
 				return diffMsg{}
 			}
-			diff, err := git.DiffDelta(m.dir, m.files[m.idxFiles].Path)
+			diff, err := git.DiffDelta(m.dir, m.files[m.idxFiles].Path, m.panelFullScreen, m.diff.Width())
 			if err != nil {
 				return errMsg{err}
 			}
@@ -292,7 +368,7 @@ func (m Model) showDiff() tea.Cmd {
 			if len(m.branches) <= 0 {
 				return diffMsg{}
 			}
-			diff, err := git.DiffBranchDelta(m.dir)
+			diff, err := git.DiffBranchDelta(m.dir, m.panelFullScreen, m.diff.Width())
 			if err != nil {
 				return errMsg{err}
 			}
@@ -301,7 +377,7 @@ func (m Model) showDiff() tea.Cmd {
 			if len(m.log) == 0 {
 				return diffMsg{}
 			}
-			diff, err := git.ShowDelta(m.dir, m.log[m.idxLog].Hash)
+			diff, err := git.ShowDelta(m.dir, m.log[m.idxLog].Hash, m.panelFullScreen, m.diff.Width())
 			if err != nil {
 				return errMsg{err}
 			}

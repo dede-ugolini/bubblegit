@@ -2,8 +2,9 @@
 package ui
 
 import (
-	"bubblegit/internal/git"
 	"time"
+
+	"bubblegit/internal/git"
 
 	"charm.land/bubbles/v2/textinput"
 	"charm.land/bubbles/v2/viewport"
@@ -48,6 +49,11 @@ type Model struct {
 	focus int
 	diff  viewport.Model
 	err   error
+
+	width  int
+	height int
+
+	panelFullScreen bool
 
 	input        textinput.Model
 	focusInput   bool
