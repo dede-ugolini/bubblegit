@@ -280,6 +280,14 @@ func (m Model) showDiff() tea.Cmd {
 	return func() tea.Msg {
 		switch m.focus {
 		case focusStag:
+			if len(m.files) <= 0 {
+				return diffMsg{}
+			}
+			diff, err := git.Diff(m.dir, m.files[m.idxFiles].Path)
+			if err != nil {
+				return errMsg{err}
+			}
+			return diffMsg{diff}
 		case focusBranch:
 		case focusLog:
 			if len(m.log) == 0 {
