@@ -84,7 +84,7 @@ func (m Model) Refresh() tea.Cmd {
 			return branchesMsg(branches)
 		},
 		func() tea.Msg {
-			log, err := git.Log(m.dir, "HEAD", 20)
+			log, err := git.Log(m.dir, "HEAD", 200)
 			if err != nil {
 				return errMsg{err}
 			}

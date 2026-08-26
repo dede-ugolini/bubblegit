@@ -150,13 +150,37 @@ func (m *Model) renderBranches() string {
 }
 
 func (m *Model) renderLog() string {
+	// Border top+bottom eat 2 rows; without windowing, a log limit bigger
+	// than the panel's height renders every entry and grows the box past
+	// m.logHeight, throwing off the rest of the layout.
+	visible := m.logHeight - 2
+	if visible < 1 {
+		visible = 1
+	}
+
+	start := 0
+	if len(m.log) > visible {
+		start = m.idxLog - visible/2
+		if start < 0 {
+			start = 0
+		}
+		if start > len(m.log)-visible {
+			start = len(m.log) - visible
+		}
+	}
+	end := start + visible
+	if end > len(m.log) {
+		end = len(m.log)
+	}
+
 	var entrys []string
-	for i, l := range m.log {
+	for i := start; i < end; i++ {
+		l := m.log[i]
 		if i == m.idxLog && m.focus == focusLog {
-			entrys = append(entrys, lipgloss.NewStyle().Background(lipgloss.ANSIColor(9)).Render(l.ShortHash))
+			entrys = append(entrys, lipgloss.NewStyle().Width(m.logWidth).Background(lipgloss.ANSIColor(9)).Render(l.ShortHash+" "+l.Date+" "+l.Subject))
 			continue
 		}
-		entrys = append(entrys, l.ShortHash)
+		entrys = append(entrys, lipgloss.NewStyle().Width(m.logWidth).Render(l.ShortHash+" "+l.Date+" "+l.Subject))
 	}
 	if m.focus == focusLog {
 		return lipgloss.NewStyle().

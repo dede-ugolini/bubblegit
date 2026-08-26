@@ -77,13 +77,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.WindowSizeMsg:
 		m.filesHeight = msg.Height * 30 / 100
-		m.filesWidth = msg.Width * 40 / 100
+		m.filesWidth = msg.Width * 45 / 100
 		m.branchHeight = msg.Height * 15 / 100
-		m.branchWidth = msg.Width * 40 / 100
+		m.branchWidth = msg.Width * 45 / 100
 		m.logHeight = msg.Height * 30 / 100
-		m.logWidth = msg.Width * 40 / 100
+		m.logWidth = msg.Width * 45 / 100
 		m.diff.SetHeight(msg.Height * 90 / 100)
-		m.diff.SetWidth(msg.Width * 60 / 100)
+		m.diff.SetWidth(msg.Width * 55 / 100)
 		m.ready = true
 		return m, nil
 
