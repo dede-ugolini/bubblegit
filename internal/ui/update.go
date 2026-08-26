@@ -283,17 +283,25 @@ func (m Model) showDiff() tea.Cmd {
 			if len(m.files) <= 0 {
 				return diffMsg{}
 			}
-			diff, err := git.Diff(m.dir, m.files[m.idxFiles].Path)
+			diff, err := git.DiffDelta(m.dir, m.files[m.idxFiles].Path)
 			if err != nil {
 				return errMsg{err}
 			}
 			return diffMsg{diff}
 		case focusBranch:
+			if len(m.branches) <= 0 {
+				return diffMsg{}
+			}
+			diff, err := git.DiffBranchDelta(m.dir)
+			if err != nil {
+				return errMsg{err}
+			}
+			return diffMsg{diff}
 		case focusLog:
 			if len(m.log) == 0 {
 				return diffMsg{}
 			}
-			diff, err := git.Show(m.dir, m.log[m.idxLog].Hash)
+			diff, err := git.ShowDelta(m.dir, m.log[m.idxLog].Hash)
 			if err != nil {
 				return errMsg{err}
 			}

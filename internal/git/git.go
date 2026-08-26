@@ -2,6 +2,7 @@
 package git
 
 import (
+	"bytes"
 	"fmt"
 	"os/exec"
 	"sort"
@@ -307,6 +308,54 @@ func Diff(dir, path string) (string, error) {
 	return string(out), nil
 }
 
+func DiffDelta(dir, path string) (string, error) {
+	git := exec.Command("git", "diff", "--no-color", "--", path)
+	git.Dir = dir
+	diff, err := git.Output()
+	if err != nil {
+		return "", err
+	}
+	delta := exec.Command(
+		"delta",
+		"--no-gitconfig",
+		"--paging=never",
+		"--line-numbers",
+	)
+	delta.Stdin = bytes.NewReader(diff)
+
+	var output bytes.Buffer
+	delta.Stdout = &output
+
+	if err := delta.Run(); err != nil {
+		return "", err
+	}
+	return output.String(), nil
+}
+
+func DiffBranchDelta(dir string) (string, error) {
+	git := exec.Command("git", "diff", "--color=always", "--stat", "--patch")
+	git.Dir = dir
+	diff, err := git.Output()
+	if err != nil {
+		return "", err
+	}
+	delta := exec.Command(
+		"delta",
+		"--no-gitconfig",
+		"--paging=never",
+		"--line-numbers",
+	)
+	delta.Stdin = bytes.NewReader(diff)
+
+	var output bytes.Buffer
+	delta.Stdout = &output
+
+	if err := delta.Run(); err != nil {
+		return "", err
+	}
+	return output.String(), nil
+}
+
 func Show(dir, hash string) (string, error) {
 	cmd := exec.Command("git", "show", "--color=always", "--stat", "--patch", hash)
 	cmd.Dir = dir
@@ -315,4 +364,28 @@ func Show(dir, hash string) (string, error) {
 		return string(""), err
 	}
 	return string(out), nil
+}
+
+func ShowDelta(dir, path string) (string, error) {
+	git := exec.Command("git", "show", "--color=always", "--stat", "--patch", path)
+	git.Dir = dir
+	diff, err := git.Output()
+	if err != nil {
+		return "", err
+	}
+	delta := exec.Command(
+		"delta",
+		"--no-gitconfig",
+		"--paging=never",
+		"--line-numbers",
+	)
+	delta.Stdin = bytes.NewReader(diff)
+
+	var output bytes.Buffer
+	delta.Stdout = &output
+
+	if err := delta.Run(); err != nil {
+		return "", err
+	}
+	return output.String(), nil
 }
