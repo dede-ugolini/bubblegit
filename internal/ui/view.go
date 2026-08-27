@@ -19,6 +19,40 @@ func (m Model) View() tea.View {
 		return tea.NewView("Loading...")
 	}
 
+	if m.popup {
+		popupWidth := m.width / 4
+		popupHeight := m.height / 4
+
+		popup := lipgloss.NewLayer(m.renderPopup()).
+			X((m.width - popupWidth) / 2).
+			Y((m.height - popupHeight) / 2).
+			Z(1)
+
+		base := lipgloss.NewLayer(m.renderNormalView()).
+			Z(0)
+
+		c := lipgloss.NewCompositor(base, popup)
+		v := tea.NewView(c.Render())
+		v.AltScreen = true
+		v.MouseMode = tea.MouseModeCellMotion
+		return v
+	}
+
+	v := tea.NewView(m.renderNormalView())
+	v.AltScreen = true
+	v.MouseMode = tea.MouseModeCellMotion
+	return v
+}
+
+func (m *Model) renderPopup() string {
+	return lipgloss.NewStyle().
+		Width(m.width / 4).
+		Height(m.height / 4).
+		Border(lipgloss.RoundedBorder()).
+		Render(m.commitMessage.View())
+}
+
+func (m *Model) renderNormalView() string {
 	var b strings.Builder
 
 	b.WriteString(m.renderFiles())
@@ -27,7 +61,6 @@ func (m Model) View() tea.View {
 	b.WriteString(m.renderBranches())
 	b.WriteString("\n")
 
-	b.WriteString("\n")
 	b.WriteString(m.renderLog())
 
 	if m.focusInput {
@@ -39,14 +72,10 @@ func (m Model) View() tea.View {
 		b.WriteString("\n")
 		b.WriteString(errStyle.Render(m.err.Error()))
 	}
-	v := tea.NewView(
-		lipgloss.JoinHorizontal(
-			lipgloss.Left,
-			b.String(), m.renderDiff(),
-		) + "\n" + renderFooter(m.focus))
-	v.AltScreen = true
-	v.MouseMode = tea.MouseModeCellMotion
-	return v
+
+	return lipgloss.JoinHorizontal(
+		lipgloss.Left, b.String(), m.renderDiff(),
+	) + "\n" + renderFooter(m.focus)
 }
 
 func (m *Model) renderDiff() string {

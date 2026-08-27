@@ -8,6 +8,27 @@ import (
 )
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if m.commit {
+		if key, ok := msg.(tea.KeyMsg); ok {
+			switch key.String() {
+			case "ctrl+s":
+				message := m.commitMessage.Value()
+				if message == "" {
+					return m, nil
+				}
+				git.Commit(m.dir, message)
+			case "esc":
+				m.commitMessage.Blur()
+				m.popup = false
+				m.commit = false
+				return m, nil
+			}
+		}
+		var cmd tea.Cmd
+		m.commitMessage, cmd = m.commitMessage.Update(msg)
+		return m, cmd
+	}
+
 	if m.focusInput {
 		if key, ok := msg.(tea.KeyMsg); ok {
 			switch key.String() {
@@ -267,6 +288,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						return filesMsg(files)
 					}
 				}
+			}
+		case "c":
+			if m.focus == focusStag && m.files[0].Staged() {
+				m.popup = true
+				m.commit = true
+				m.commitMessage.Focus()
 			}
 
 		case "+":

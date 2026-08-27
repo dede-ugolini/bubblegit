@@ -6,6 +6,7 @@ import (
 
 	"bubblegit/internal/git"
 
+	"charm.land/bubbles/v2/textarea"
 	"charm.land/bubbles/v2/textinput"
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
@@ -46,6 +47,11 @@ type Model struct {
 	logHeight int
 	logWidth  int
 
+	popup bool
+
+	commit        bool
+	commitMessage textarea.Model
+
 	focus int
 	diff  viewport.Model
 	err   error
@@ -65,8 +71,9 @@ type Model struct {
 
 func NewModel(dir string) Model {
 	return Model{
-		dir:   dir,
-		input: textinput.New(),
+		dir:           dir,
+		input:         textinput.New(),
+		commitMessage: textarea.New(),
 	}
 }
 

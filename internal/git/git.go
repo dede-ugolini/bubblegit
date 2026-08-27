@@ -398,3 +398,9 @@ func ShowDelta(dir, path string, sideBySide bool, width int) (string, error) {
 	}
 	return output.String(), nil
 }
+
+func Commit(dir, message string) {
+	cmd := exec.Command("git", "commit", "-m", message)
+	cmd.Dir = dir
+	cmd.Run()
+}
