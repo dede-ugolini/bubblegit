@@ -216,6 +216,64 @@ func TestDeleteBranch(t *testing.T) {
 	})
 }
 
+func TestCommit(t *testing.T) {
+	t.Run("commit staged file", func(t *testing.T) {
+		dir := initRepo(t)
+		if err := writeFile(dir, "hello.go", "package main\n"); err != nil {
+			t.Fatal(err)
+		}
+		run(t, dir, "git", "add", "hello.go")
+
+		if err := Commit(dir, "add hello"); err != nil {
+			t.Fatalf("Commit() error: %v", err)
+		}
+
+		cmd := exec.Command("git", "log", "-1", "--format=%s")
+		cmd.Dir = dir
+		out, err := cmd.Output()
+		if err != nil {
+			t.Fatalf("failed to read log: %v", err)
+		}
+		if got := strings.TrimSpace(string(out)); got != "add hello" {
+			t.Errorf("commit subject = %q, want %q", got, "add hello")
+		}
+	})
+
+	t.Run("multi-line message", func(t *testing.T) {
+		dir := initRepo(t)
+		if err := writeFile(dir, "hello.go", "package main\n"); err != nil {
+			t.Fatal(err)
+		}
+		run(t, dir, "git", "add", "hello.go")
+
+		if err := Commit(dir, "summary\n\nbody line"); err != nil {
+			t.Fatalf("Commit() error: %v", err)
+		}
+
+		cmd := exec.Command("git", "log", "-1", "--format=%B")
+		cmd.Dir = dir
+		out, err := cmd.Output()
+		if err != nil {
+			t.Fatalf("failed to read log: %v", err)
+		}
+		if got := strings.TrimSpace(string(out)); got != "summary\n\nbody line" {
+			t.Errorf("commit body = %q, want %q", got, "summary\n\nbody line")
+		}
+	})
+
+	t.Run("commit with nothing staged fails", func(t *testing.T) {
+		dir := initRepo(t)
+		if err := writeFile(dir, "hello.go", "package main\n"); err != nil {
+			t.Fatal(err)
+		}
+
+		err := Commit(dir, "nothing staged")
+		if err == nil {
+			t.Fatal("Commit() with nothing staged succeeded, want error")
+		}
+	})
+}
+
 func currentBranch(t *testing.T, dir string) string {
 	t.Helper()
 	cmd := exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD")
