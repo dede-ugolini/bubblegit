@@ -72,6 +72,9 @@ func (m *Model) renderNormalView() string {
 	b.WriteString("\n")
 
 	b.WriteString(m.renderLog())
+	b.WriteString("\n")
+
+	b.WriteString(m.renderStash())
 
 	if m.focusInput {
 		b.WriteString(m.input.View())
@@ -250,18 +253,68 @@ func (m *Model) renderLog() string {
 		Render(strings.Join(entrys, "\n"))
 }
 
+func (m *Model) renderStash() string {
+	if m.stashHeight <= 0 || m.stashWidth <= 0 {
+		return ""
+	}
+
+	visible := m.stashHeight - 2
+	if visible < 1 {
+		visible = 1
+	}
+
+	start := 0
+	if len(m.stashes) > visible {
+		start = m.idxStash - visible/2
+		if start < 0 {
+			start = 0
+		}
+		if start > len(m.stashes)-visible {
+			start = len(m.stashes) - visible
+		}
+	}
+	end := start + visible
+	if end > len(m.stashes) {
+		end = len(m.stashes)
+	}
+
+	var entrys []string
+	for i := start; i < end; i++ {
+		s := m.stashes[i]
+		line := s.Ref + " " + s.Date + " " + s.Message
+		if i == m.idxStash && m.focus == focusStash {
+			entrys = append(entrys, lipgloss.NewStyle().Width(m.stashWidth).Background(lipgloss.ANSIColor(9)).Render(line))
+			continue
+		}
+		entrys = append(entrys, lipgloss.NewStyle().Width(m.stashWidth).Render(line))
+	}
+	if m.focus == focusStash {
+		return lipgloss.NewStyle().
+			Border(lipgloss.NormalBorder(), true).
+			BorderForeground(lipgloss.ANSIColor(222)).
+			Height(m.stashHeight).
+			Render(strings.Join(entrys, "\n"))
+	}
+	return lipgloss.NewStyle().
+		Border(lipgloss.NormalBorder(), true).
+		Height(m.stashHeight).
+		Render(strings.Join(entrys, "\n"))
+}
+
 func renderFooter(focus int) string {
 	helpStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 	switch focus {
 	case focusStag:
-		return helpStyle.Render("↑/k ↓/j move · <space> stag · a stag/unstag all · d restore · 0 diff · 1 files · 2 branches · 3 log · q quit")
+		return helpStyle.Render("↑/k ↓/j move · <space> stag · a stag/unstag all · d restore · 0 diff · 1 files · 2 branches · 3 log · 4 stash · q quit")
 	case focusBranch:
-		return helpStyle.Render("↑/k ↓/j move · enter checkout · n new branch · r rename · d delete · 0 diff · 1 files · 2 branches · 3 log · q quit")
+		return helpStyle.Render("↑/k ↓/j move · enter checkout · n new branch · r rename · d delete · 0 diff · 1 files · 2 branches · 3 log · 4 stash · q quit")
 	case focusLog:
-		return helpStyle.Render("↑/k ↓/j move · pgup/pgdown scroll · 0 diff · 1 files · 2 branches · 3 log · q quit")
+		return helpStyle.Render("↑/k ↓/j move · pgup/pgdown scroll · 0 diff · 1 files · 2 branches · 3 log · 4 stash · q quit")
+	case focusStash:
+		return helpStyle.Render("↑/k ↓/j move · enter apply · n new stash · d drop · 0 diff · 1 files · 2 branches · 3 log · 4 stash · q quit")
 	case focusDiff:
-		return helpStyle.Render("↑/k ↓/j move · pgup/pgdown scroll · 0 diff · 1 files · 2 branches · 3 log · q quit")
+		return helpStyle.Render("↑/k ↓/j move · pgup/pgdown scroll · 0 diff · 1 files · 2 branches · 3 log · 4 stash · q quit")
 	default:
-		return helpStyle.Render("0 diff · 1 files · 2 branches · 3 log · q quit")
+		return helpStyle.Render("0 diff · 1 files · 2 branches · 3 log · 4 stash · q quit")
 	}
 }

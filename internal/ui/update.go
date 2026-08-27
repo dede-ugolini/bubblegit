@@ -69,8 +69,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "enter":
 				name := m.input.Value()
 				old := m.renameBranch
+				stashInput := m.stashInput
 				m.focusInput = false
 				m.renameBranch = ""
+				m.stashInput = false
+				if stashInput {
+					return m, func() tea.Msg {
+						if err := git.StashPush(m.dir, name); err != nil {
+							return errMsg{err}
+						}
+						stashes, err := git.Stashes(m.dir)
+						if err != nil {
+							return errMsg{err}
+						}
+						return stashesMsg(stashes)
+					}
+				}
 				if name == "" {
 					return m, nil
 				}
@@ -95,6 +109,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			case "esc":
 				m.focusInput = false
+				m.renameBranch = ""
+				m.stashInput = false
 				return m, nil
 			}
 		}
@@ -124,6 +140,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.log = []git.LogEntry(msg)
 		return m, nil
 
+	case stashesMsg:
+		m.stashes = []git.StashEntry(msg)
+		if m.idxStash >= len(m.stashes) {
+			m.idxStash = len(m.stashes) - 1
+		}
+		if m.idxStash < 0 {
+			m.idxStash = 0
+		}
+		return m, nil
+
 	case diffMsg:
 		m.diff.SetContent(msg.diff)
 		return m, nil
@@ -136,12 +162,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.height = msg.Height
 		m.width = msg.Width
-		m.filesHeight = msg.Height * 30 / 100
+		m.filesHeight = msg.Height * 25 / 100
 		m.filesWidth = msg.Width * 45 / 100
 		m.branchHeight = msg.Height * 15 / 100
 		m.branchWidth = msg.Width * 45 / 100
-		m.logHeight = msg.Height * 30 / 100
+		m.logHeight = msg.Height * 20 / 100
 		m.logWidth = msg.Width * 45 / 100
+		m.stashHeight = msg.Height * 15 / 100
+		m.stashWidth = msg.Width * 45 / 100
 		m.diff.SetHeight(msg.Height * 90 / 100)
 		m.diff.SetWidth(msg.Width * 55 / 100)
 		m.ready = true
@@ -168,6 +196,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "3":
 			m.focus = focusLog
 
+		case "4":
+			m.focus = focusStash
+
 		case "up", "k":
 			switch m.focus {
 			case focusStag:
@@ -176,6 +207,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.moveBranch(-1)
 			case focusLog:
 				m.moveLog(-1)
+			case focusStash:
+				m.moveStash(-1)
 			}
 			return m, m.showDiff()
 
@@ -187,6 +220,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.moveBranch(1)
 			case focusLog:
 				m.moveLog(1)
+			case focusStash:
+				m.moveStash(1)
 			case focusDiff:
 				var cmd tea.Cmd
 				m.diff, cmd = m.diff.Update(msg)
@@ -230,6 +265,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					return filesMsg(files)
 				}
 			}
+			if m.focus == focusStash && len(m.stashes) > 0 {
+				ref := m.stashes[m.idxStash].Ref
+				return m, func() tea.Msg {
+					if err := git.StashDrop(m.dir, ref); err != nil {
+						return errMsg{err}
+					}
+					stashes, err := git.Stashes(m.dir)
+					if err != nil {
+						return errMsg{err}
+					}
+					return stashesMsg(stashes)
+				}
+			}
 
 		case "n":
 			if m.focus == focusBranch {
@@ -239,6 +287,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.input.Prompt = "branch> "
 				m.input.Placeholder = "new branch name"
 				m.input.Focus()
+				m.focusInput = true
+				return m, textinput.Blink
+			}
+			if m.focus == focusStash {
+				m.input.SetWidth(40)
+				m.input.CharLimit = 72
+				m.input.SetValue("")
+				m.input.Prompt = "stash> "
+				m.input.Placeholder = "stash message (optional)"
+				m.input.Focus()
+				m.stashInput = true
 				m.focusInput = true
 				return m, textinput.Blink
 			}
@@ -269,6 +328,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						return errMsg{err}
 					}
 					return branchesMsg(branches)
+				}
+			}
+			if m.focus == focusStash && len(m.stashes) > 0 {
+				ref := m.stashes[m.idxStash].Ref
+				return m, func() tea.Msg {
+					if err := git.StashApply(m.dir, ref); err != nil {
+						return errMsg{err}
+					}
+					files, err := git.Status(m.dir)
+					if err != nil {
+						return errMsg{err}
+					}
+					return filesMsg(files)
 				}
 			}
 		case "space":
@@ -350,6 +422,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.logHeight = 0
 					m.logWidth = 0
 
+					m.stashHeight = 0
+					m.stashWidth = 0
+
 					m.diff.SetHeight(0)
 					m.diff.SetWidth(0)
 				case focusBranch:
@@ -362,6 +437,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.logHeight = 0
 					m.logWidth = 0
 
+					m.stashHeight = 0
+					m.stashWidth = 0
+
 					m.diff.SetHeight(0)
 					m.diff.SetWidth(0)
 				case focusLog:
@@ -373,6 +451,24 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 					m.branchHeight = 0
 					m.branchWidth = 0
+
+					m.stashHeight = 0
+					m.stashWidth = 0
+
+					m.diff.SetHeight(0)
+					m.diff.SetWidth(0)
+				case focusStash:
+					m.stashHeight = m.height
+					m.stashWidth = m.width
+
+					m.filesHeight = 0
+					m.filesWidth = 0
+
+					m.branchHeight = 0
+					m.branchWidth = 0
+
+					m.logHeight = 0
+					m.logWidth = 0
 
 					m.diff.SetHeight(0)
 					m.diff.SetWidth(0)
@@ -388,6 +484,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 					m.logHeight = 0
 					m.logWidth = 0
+
+					m.stashHeight = 0
+					m.stashWidth = 0
 				}
 				return m, m.showDiff()
 			}
@@ -395,14 +494,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "-":
 			if m.panelFullScreen {
 				m.panelFullScreen = false
-				m.filesHeight = m.height * 30 / 100
+				m.filesHeight = m.height * 25 / 100
 				m.filesWidth = m.width * 45 / 100
 
 				m.branchHeight = m.height * 15 / 100
 				m.branchWidth = m.width * 45 / 100
 
-				m.logHeight = m.height * 30 / 100
+				m.logHeight = m.height * 20 / 100
 				m.logWidth = m.width * 45 / 100
+
+				m.stashHeight = m.height * 15 / 100
+				m.stashWidth = m.width * 45 / 100
 
 				m.diff.SetHeight(m.height * 90 / 100)
 				m.diff.SetWidth(m.width * 55 / 100)
@@ -449,6 +551,15 @@ func (m Model) showDiff() tea.Cmd {
 				return errMsg{err}
 			}
 			return diffMsg{diff}
+		case focusStash:
+			if len(m.stashes) == 0 {
+				return diffMsg{}
+			}
+			diff, err := git.StashShowDelta(m.dir, m.stashes[m.idxStash].Ref, m.panelFullScreen, m.diff.Width())
+			if err != nil {
+				return errMsg{err}
+			}
+			return diffMsg{diff}
 		}
 		return nil
 	}
@@ -486,5 +597,16 @@ func (m *Model) moveLog(delta int) {
 
 	if m.idxLog >= len(m.log) {
 		m.idxLog = len(m.log) - 1
+	}
+}
+
+func (m *Model) moveStash(delta int) {
+	m.idxStash += delta
+	if m.idxStash < 0 {
+		m.idxStash = 0
+	}
+
+	if m.idxStash >= len(m.stashes) {
+		m.idxStash = len(m.stashes) - 1
 	}
 }

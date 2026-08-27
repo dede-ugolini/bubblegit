@@ -17,6 +17,7 @@ const (
 	focusBranch
 	focusLog
 	focusDiff
+	focusStash
 	focusCount
 )
 
@@ -24,6 +25,7 @@ type (
 	filesMsg    []git.FileStatus
 	branchesMsg []git.BranchInfo
 	logMsg      []git.LogEntry
+	stashesMsg  []git.StashEntry
 	diffMsg     struct{ diff string }
 	errMsg      struct{ err error }
 	tickMsg     struct{}
@@ -59,6 +61,11 @@ type Model struct {
 	logHeight int
 	logWidth  int
 
+	stashes     []git.StashEntry
+	idxStash    int
+	stashHeight int
+	stashWidth  int
+
 	commitPopup commitPopup
 
 	focus int
@@ -73,6 +80,7 @@ type Model struct {
 	input        textinput.Model
 	focusInput   bool
 	renameBranch string
+	stashInput   bool
 
 	ready    bool
 	quitting bool
@@ -121,6 +129,13 @@ func (m Model) Refresh() tea.Cmd {
 				return errMsg{err}
 			}
 			return logMsg(log)
+		},
+		func() tea.Msg {
+			stashes, err := git.Stashes(m.dir)
+			if err != nil {
+				return errMsg{err}
+			}
+			return stashesMsg(stashes)
 		},
 	)
 }
