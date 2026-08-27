@@ -8,24 +8,58 @@ import (
 )
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if m.commit {
+	if m.commitPopup.active {
 		if key, ok := msg.(tea.KeyMsg); ok {
 			switch key.String() {
 			case "ctrl+s":
-				message := m.commitMessage.Value()
-				if message == "" {
+				summary := m.commitPopup.commitSummary.Value()
+				if summary == "" {
 					return m, nil
 				}
-				git.Commit(m.dir, message)
+				message := m.commitPopup.commitMessage.Value()
+				m.commitPopup.commitSummary.Blur()
+				m.commitPopup.commitMessage.Blur()
+				m.commitPopup.active = false
+				return m, tea.Batch(
+					func() tea.Msg {
+						if err := git.Commit(m.dir, summary+"\n"+message); err != nil {
+							return errMsg{err}
+						}
+						return nil
+					},
+					m.Refresh(),
+				)
+			case "tab":
+				if m.commitPopup.focus == commitFocusSummary {
+					m.commitPopup.commitSummary.Blur()
+					m.commitPopup.commitMessage.Focus()
+					m.commitPopup.focus = commitFocusMessage
+				} else {
+					m.commitPopup.commitMessage.Blur()
+					m.commitPopup.commitSummary.Focus()
+					m.commitPopup.focus = commitFocusSummary
+				}
+				return m, nil
 			case "esc":
-				m.commitMessage.Blur()
-				m.popup = false
-				m.commit = false
+				m.commitPopup.commitSummary.Blur()
+				m.commitPopup.commitMessage.Blur()
+				m.commitPopup.active = false
+				return m, nil
+			case "enter":
+				if m.commitPopup.focus == commitFocusSummary {
+					m.commitPopup.commitSummary.Blur()
+					m.commitPopup.commitMessage.Focus()
+					m.commitPopup.focus = commitFocusMessage
+				}
 				return m, nil
 			}
 		}
 		var cmd tea.Cmd
-		m.commitMessage, cmd = m.commitMessage.Update(msg)
+		if m.commitPopup.focus == commitFocusSummary {
+			m.commitPopup.commitSummary, cmd = m.commitPopup.commitSummary.Update(msg)
+			return m, cmd
+		}
+		m.commitPopup.commitMessage, cmd = m.commitPopup.commitMessage.Update(msg)
 		return m, cmd
 	}
 
@@ -290,10 +324,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 		case "c":
-			if m.focus == focusStag && m.files[0].Staged() {
-				m.popup = true
-				m.commit = true
-				m.commitMessage.Focus()
+			if m.focus == focusStag && len(m.files) > 0 && git.HasOneStaged(m.files) {
+				m.commitPopup.focus = commitFocusSummary
+				m.commitPopup.commitSummary.SetWidth(m.width / 3)
+				m.commitPopup.commitMessage.SetWidth(m.width / 3)
+				m.commitPopup.commitSummary.Placeholder = "Commit summary"
+				m.commitPopup.commitMessage.Placeholder = "Commit message"
+				m.commitPopup.commitSummary.Focus()
+				m.commitPopup.commitMessage.Blur()
+				m.commitPopup.active = true
+				return m, textinput.Blink
 			}
 
 		case "+":

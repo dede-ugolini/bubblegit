@@ -29,6 +29,18 @@ type (
 	tickMsg     struct{}
 )
 
+const (
+	commitFocusSummary = iota
+	commitFocusMessage
+)
+
+type commitPopup struct {
+	commitSummary textinput.Model
+	commitMessage textarea.Model
+	focus         int
+	active        bool
+}
+
 type Model struct {
 	dir string
 
@@ -47,10 +59,7 @@ type Model struct {
 	logHeight int
 	logWidth  int
 
-	popup bool
-
-	commit        bool
-	commitMessage textarea.Model
+	commitPopup commitPopup
 
 	focus int
 	diff  viewport.Model
@@ -71,9 +80,12 @@ type Model struct {
 
 func NewModel(dir string) Model {
 	return Model{
-		dir:           dir,
-		input:         textinput.New(),
-		commitMessage: textarea.New(),
+		dir:   dir,
+		input: textinput.New(),
+		commitPopup: commitPopup{
+			commitSummary: textinput.New(),
+			commitMessage: textarea.New(),
+		},
 	}
 }
 

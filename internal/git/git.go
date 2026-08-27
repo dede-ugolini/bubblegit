@@ -171,6 +171,15 @@ func AllStaged(files []FileStatus) bool {
 	return true
 }
 
+func HasOneStaged(files []FileStatus) bool {
+	for _, f := range files {
+		if f.Staged() {
+			return true
+		}
+	}
+	return false
+}
+
 type BranchInfo struct {
 	Name    string
 	Current bool
@@ -399,8 +408,9 @@ func ShowDelta(dir, path string, sideBySide bool, width int) (string, error) {
 	return output.String(), nil
 }
 
-func Commit(dir, message string) {
+func Commit(dir, message string) error {
 	cmd := exec.Command("git", "commit", "-m", message)
 	cmd.Dir = dir
-	cmd.Run()
+	_, err := cmd.CombinedOutput()
+	return err
 }

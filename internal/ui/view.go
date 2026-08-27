@@ -19,7 +19,7 @@ func (m Model) View() tea.View {
 		return tea.NewView("Loading...")
 	}
 
-	if m.popup {
+	if m.commitPopup.active {
 		popupWidth := m.width / 4
 		popupHeight := m.height / 4
 
@@ -45,11 +45,21 @@ func (m Model) View() tea.View {
 }
 
 func (m *Model) renderPopup() string {
-	return lipgloss.NewStyle().
-		Width(m.width / 4).
+	var summary, message string
+	width := m.width / 3
+
+	summary = lipgloss.NewStyle().
+		Width(width).
+		Border(lipgloss.RoundedBorder()).
+		Render(m.commitPopup.commitSummary.View())
+
+	message = lipgloss.NewStyle().
+		Width(width).
 		Height(m.height / 4).
 		Border(lipgloss.RoundedBorder()).
-		Render(m.commitMessage.View())
+		Render(m.commitPopup.commitMessage.View())
+
+	return summary + "\n" + message
 }
 
 func (m *Model) renderNormalView() string {
