@@ -203,7 +203,6 @@ func (m *Model) renderFiles() string {
 	red := lipgloss.NewStyle().Foreground(colorRemoved)
 	green := lipgloss.NewStyle().Foreground(colorAdded)
 	yellow := lipgloss.NewStyle().Foreground(colorConflict)
-	sel := lipgloss.NewStyle().Background(colorAccent)
 
 	start, end := visibleWindow(len(m.files), m.filesHeight, m.idxFiles)
 	for i := start; i < end; i++ {
@@ -211,6 +210,15 @@ func (m *Model) renderFiles() string {
 		stag := string(f.Index)
 		worktree := string(f.Worktree)
 		path := f.Path
+
+		if i == m.idxFiles && m.focus == focusStag {
+			// Deliberately plain text here: coloring stag/worktree/path
+			// individually first and only then wrapping the joined line in
+			// Width(...).Background(...) would hit the same nested-reset
+			// issue as log/stash - see there.
+			s = append(s, lipgloss.NewStyle().Width(m.filesWidth).Background(colorAccent).Render(stag+worktree+" "+path))
+			continue
+		}
 
 		switch {
 		case f.Untracked():
@@ -230,30 +238,25 @@ func (m *Model) renderFiles() string {
 			worktree = red.Render(worktree)
 		}
 
-		space := " "
+		s = append(s, lipgloss.NewStyle().Width(m.filesWidth).Render(stag+worktree+" "+path))
+	}
 
-		if i == m.idxFiles && m.focus == focusStag {
-			stag = sel.Render(stag)
-			worktree = sel.Render(worktree)
-			space = sel.Render(space)
-			path = sel.Render(path)
-		}
-
-		s = append(s, stag+worktree+space+path)
+	// The outer style deliberately has no Width of its own - see the note
+	// on renderStash.
+	if len(s) == 0 {
+		s = append(s, lipgloss.NewStyle().Width(m.filesWidth).Render(""))
 	}
 
 	if m.focus == focusStag {
 		return lipgloss.NewStyle().
 			Border(lipgloss.NormalBorder(), true).
 			BorderForeground(colorFocusBorder).
-			Width(m.filesWidth).
 			Height(m.filesHeight).
 			Render(strings.Join(s, "\n"))
 	}
 
 	return lipgloss.NewStyle().
 		Border(lipgloss.NormalBorder(), true).
-		Width(m.filesWidth).
 		Height(m.filesHeight).
 		Render(strings.Join(s, "\n"))
 }
@@ -267,28 +270,37 @@ func (m *Model) renderBranches() string {
 	start, end := visibleWindow(len(m.branches), m.branchHeight, m.idxBranch)
 	for i := start; i < end; i++ {
 		b := m.branches[i]
+		if m.idxBranch == i {
+			// Deliberately plain text here: coloring the current branch's
+			// name first and only then wrapping in Width(...).Background(...)
+			// would hit the same nested-reset issue as log/stash - see
+			// there.
+			names = append(names, lipgloss.NewStyle().Width(m.branchWidth).Background(colorCursor).Render(b.Name))
+			continue
+		}
 		name := b.Name
 		if b.Current {
 			name = lipgloss.NewStyle().Foreground(colorAccent).Render(name)
 		}
-		if m.idxBranch == i {
-			name = lipgloss.NewStyle().Background(colorCursor).Render(name)
-		}
-		names = append(names, name)
+		names = append(names, lipgloss.NewStyle().Width(m.branchWidth).Render(name))
+	}
+
+	// The outer style deliberately has no Width of its own - see the note
+	// on renderStash.
+	if len(names) == 0 {
+		names = append(names, lipgloss.NewStyle().Width(m.branchWidth).Render(""))
 	}
 
 	if m.focus == focusBranch {
 		return lipgloss.NewStyle().
 			Border(lipgloss.NormalBorder(), true).
 			BorderForeground(colorFocusBorder).
-			Width(m.branchWidth).
 			Height(m.branchHeight).
 			Render(strings.Join(names, "\n"))
 	}
 
 	return lipgloss.NewStyle().
 		Border(lipgloss.NormalBorder(), true).
-		Width(m.branchWidth).
 		Height(m.branchHeight).
 		Render(strings.Join(names, "\n"))
 }
