@@ -349,6 +349,16 @@ func DiffDelta(dir, path string, sideBySide bool, width int) (string, error) {
 	return output.String(), nil
 }
 
+func DiffBranch(dir string) (string, error) {
+	cmd := exec.Command("git", "diff", "--color=always", "--stat", "--patch")
+	cmd.Dir = dir
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("%s", strings.TrimSpace(string(out)))
+	}
+	return string(out), nil
+}
+
 func DiffBranchDelta(dir string, sideBySide bool, width int) (string, error) {
 	git := exec.Command("git", "diff", "--color=always", "--stat", "--patch")
 	git.Dir = dir
@@ -607,6 +617,16 @@ func StashClear(dir string) error {
 // StashShowDelta renders a stash entry's diff through delta. `git show` on
 // a stash prints a combined "diff --cc" (it's a merge commit); `stash show
 // -p` is the form that produces a normal unified diff.
+func StashShow(dir, ref string) (string, error) {
+	cmd := exec.Command("git", "stash", "show", "-p", "--color=always", ref)
+	cmd.Dir = dir
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("%s", strings.TrimSpace(string(out)))
+	}
+	return string(out), nil
+}
+
 func StashShowDelta(dir, ref string, sideBySide bool, width int) (string, error) {
 	git := exec.Command("git", "stash", "show", "-p", "--no-color", ref)
 	git.Dir = dir

@@ -199,7 +199,7 @@ func (m *Model) renderNormalView() string {
 
 	return lipgloss.JoinHorizontal(
 		lipgloss.Left, b.String(), m.renderDiff(),
-	) + "\n" + m.renderFooter()
+	) + lipgloss.NewStyle().Width(m.width).Align(lipgloss.Center).Render("\n\n"+m.renderFooter())
 }
 
 func (m *Model) renderDiff() string {
@@ -421,18 +421,23 @@ func (m *Model) renderStash() string {
 
 func (m *Model) renderFooter() string {
 	helpStyle := lipgloss.NewStyle().Foreground(m.theme.Muted)
+	mode := "delta"
+	if !m.useDelta {
+		mode = "git"
+	}
+	modeStr := helpStyle.Render("diff: " + mode + " · V toggle")
 	switch m.focus {
 	case focusStag:
-		return helpStyle.Render("↑/k ↓/j move · <space> stag · a stag/unstag all · d restore · t theme · 0 diff · 1 files · 2 branches · 3 log · 4 stash · q quit")
+		return helpStyle.Render("↑/k ↓/j move · <space> stag · a stag/unstag all · d restore · t theme · q quit") + " · " + modeStr
 	case focusBranch:
-		return helpStyle.Render("↑/k ↓/j move · enter checkout · n new branch · r rename · d delete · t theme · 0 diff · 1 files · 2 branches · 3 log · 4 stash · q quit")
+		return helpStyle.Render("↑/k ↓/j move · enter checkout · n new branch · r rename · d delete · t theme · q quit") + " · " + modeStr
 	case focusLog:
-		return helpStyle.Render("↑/k ↓/j move · pgup/pgdown scroll · R reword · t theme · 0 diff · 1 files · 2 branches · 3 log · 4 stash · q quit")
+		return helpStyle.Render("↑/k ↓/j move · pgup/pgdown scroll · R reword · t theme · q quit") + " · " + modeStr
 	case focusStash:
-		return helpStyle.Render("↑/k ↓/j move · enter apply · n new stash · p pop · b branch · d drop · D clear all · t theme · 0 diff · 1 files · 2 branches · 3 log · 4 stash · q quit")
+		return helpStyle.Render("↑/k ↓/j move · enter apply · n new stash · p pop · b branch · d drop · D clear all · t theme · q quit") + " · " + modeStr
 	case focusDiff:
-		return helpStyle.Render("↑/k ↓/j move · pgup/pgdown scroll · t theme · 0 diff · 1 files · 2 branches · 3 log · 4 stash · q quit")
+		return helpStyle.Render("↑/k ↓/j move · pgup/pgdown scroll · t theme · q quit") + " · " + modeStr
 	default:
-		return helpStyle.Render("t theme · 0 diff · 1 files · 2 branches · 3 log · 4 stash · q quit")
+		return helpStyle.Render("t theme · q quit") + " · " + modeStr
 	}
 }

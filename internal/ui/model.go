@@ -110,6 +110,9 @@ type Model struct {
 
 	panelFullScreen bool
 
+	// useDelta toggles between delta-rendered diffs and plain git output.
+	useDelta bool
+
 	themeName string
 	theme     Theme
 
@@ -132,6 +135,7 @@ func NewModel(dir string) Model {
 		},
 		themeName: themeOrder[0],
 		theme:     themesByName[themeOrder[0]],
+		useDelta:  true,
 	}
 }
 

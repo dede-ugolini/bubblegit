@@ -475,6 +475,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "t":
 			// Cycle theme
 			m.themeName, m.theme = nextTheme(m.themeName)
+
+		case "V":
+			// Toggle diff rendering mode (delta vs plain git)
+			m.useDelta = !m.useDelta
+			return m, m.showDiff()
 		}
 	}
 
@@ -488,7 +493,15 @@ func (m Model) showDiff() tea.Cmd {
 			if len(m.files) <= 0 {
 				return diffMsg{}
 			}
-			diff, err := git.DiffDelta(m.dir, m.files[m.idxFiles].Path, m.panelFullScreen, m.diff.Width())
+			var (
+				diff string
+				err  error
+			)
+			if m.useDelta {
+				diff, err = git.DiffDelta(m.dir, m.files[m.idxFiles].Path, m.panelFullScreen, m.diff.Width())
+			} else {
+				diff, err = git.Diff(m.dir, m.files[m.idxFiles].Path)
+			}
 			if err != nil {
 				return errMsg{err}
 			}
@@ -497,7 +510,15 @@ func (m Model) showDiff() tea.Cmd {
 			if len(m.branches) <= 0 {
 				return diffMsg{}
 			}
-			diff, err := git.DiffBranchDelta(m.dir, m.panelFullScreen, m.diff.Width())
+			var (
+				diff string
+				err  error
+			)
+			if m.useDelta {
+				diff, err = git.DiffBranchDelta(m.dir, m.panelFullScreen, m.diff.Width())
+			} else {
+				diff, err = git.DiffBranch(m.dir)
+			}
 			if err != nil {
 				return errMsg{err}
 			}
@@ -506,7 +527,15 @@ func (m Model) showDiff() tea.Cmd {
 			if len(m.log) == 0 {
 				return diffMsg{}
 			}
-			diff, err := git.ShowDelta(m.dir, m.log[m.idxLog].Hash, m.panelFullScreen, m.diff.Width())
+			var (
+				diff string
+				err  error
+			)
+			if m.useDelta {
+				diff, err = git.ShowDelta(m.dir, m.log[m.idxLog].Hash, m.panelFullScreen, m.diff.Width())
+			} else {
+				diff, err = git.Show(m.dir, m.log[m.idxLog].Hash)
+			}
 			if err != nil {
 				return errMsg{err}
 			}
@@ -515,7 +544,15 @@ func (m Model) showDiff() tea.Cmd {
 			if len(m.stashes) == 0 {
 				return diffMsg{}
 			}
-			diff, err := git.StashShowDelta(m.dir, m.stashes[m.idxStash].Ref, m.panelFullScreen, m.diff.Width())
+			var (
+				diff string
+				err  error
+			)
+			if m.useDelta {
+				diff, err = git.StashShowDelta(m.dir, m.stashes[m.idxStash].Ref, m.panelFullScreen, m.diff.Width())
+			} else {
+				diff, err = git.StashShow(m.dir, m.stashes[m.idxStash].Ref)
+			}
 			if err != nil {
 				return errMsg{err}
 			}

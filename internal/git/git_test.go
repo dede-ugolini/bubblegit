@@ -5,6 +5,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -314,6 +315,59 @@ func TestStashBranch(t *testing.T) {
 	}
 }
 
+func TestPlainDiffBranch(t *testing.T) {
+	dir := initRepo(t)
+	if err := writeFile(dir, "hello.go", "package main\n"); err != nil {
+		t.Fatal(err)
+	}
+	run(t, dir, "git", "add", "hello.go")
+	run(t, dir, "git", "commit", "-m", "add hello")
+
+	if err := writeFile(dir, "hello.go", "package main\n// changed\n"); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := DiffBranch(dir)
+	if err != nil {
+		t.Fatalf("DiffBranch() error: %v", err)
+	}
+	plain := stripANSI(out)
+	if !strings.Contains(plain, "+// changed") {
+		t.Errorf("DiffBranch() output missing changed line:\n%s", plain)
+	}
+	if !strings.Contains(plain, "hello.go") {
+		t.Errorf("DiffBranch() output missing file path:\n%s", plain)
+	}
+}
+
+func TestPlainStashShow(t *testing.T) {
+	dir := initRepo(t)
+	if err := writeFile(dir, "hello.go", "package main\n"); err != nil {
+		t.Fatal(err)
+	}
+	run(t, dir, "git", "add", "hello.go")
+	run(t, dir, "git", "commit", "-m", "add hello")
+
+	if err := writeFile(dir, "hello.go", "package main\n// stashed\n"); err != nil {
+		t.Fatal(err)
+	}
+	if err := StashPush(dir, "wip"); err != nil {
+		t.Fatalf("StashPush() error: %v", err)
+	}
+	if n, err := lenStashEntries(t, dir); err != nil || n != 1 {
+		t.Fatalf("stash count = %d, want 1 (err=%v)", n, err)
+	}
+
+	out, err := StashShow(dir, "stash@{0}")
+	if err != nil {
+		t.Fatalf("StashShow() error: %v", err)
+	}
+	plain := stripANSI(out)
+	if !strings.Contains(plain, "+// stashed") {
+		t.Errorf("StashShow() output missing stashed line:\n%s", plain)
+	}
+}
+
 func lenStashEntries(t *testing.T, dir string) (int, error) {
 	t.Helper()
 	cmd := exec.Command("git", "stash", "list")
@@ -327,6 +381,11 @@ func lenStashEntries(t *testing.T, dir string) (int, error) {
 		return 0, nil
 	}
 	return len(strings.Split(s, "\n")), nil
+}
+
+func stripANSI(s string) string {
+	re := regexp.MustCompile(`\x1b\[[0-9;]*m`)
+	return re.ReplaceAllString(s, "")
 }
 
 func currentBranch(t *testing.T, dir string) string {
