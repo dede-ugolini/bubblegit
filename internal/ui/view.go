@@ -104,6 +104,25 @@ func (m Model) View() tea.View {
 		return v
 	}
 
+	if m.inputPopup.active {
+		popupWidth := m.width / 3
+		popupHeight := m.height / 8
+
+		popup := lipgloss.NewLayer(m.renderInputPopup()).
+			X((m.width - popupWidth) / 2).
+			Y((m.height - popupHeight) / 2).
+			Z(1)
+
+		base := lipgloss.NewLayer(m.renderNormalView()).
+			Z(0)
+
+		c := lipgloss.NewCompositor(base, popup)
+		v := tea.NewView(c.Render())
+		v.AltScreen = true
+		v.MouseMode = tea.MouseModeCellMotion
+		return v
+	}
+
 	v := tea.NewView(m.renderNormalView())
 	v.AltScreen = true
 	v.MouseMode = tea.MouseModeCellMotion
@@ -130,6 +149,17 @@ func (m *Model) renderStashBranchPopup() string {
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(colorFocusBorder).
 		Render("Branch from stash\n\n" + m.stashBranchPopup.input.View() + "\n" + help)
+}
+
+func (m *Model) renderInputPopup() string {
+	help := lipgloss.NewStyle().Foreground(colorMuted).
+		Render("enter confirm · esc cancel")
+
+	return lipgloss.NewStyle().
+		Width(m.width / 3).
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(colorFocusBorder).
+		Render(m.inputPopup.title + "\n\n" + m.inputPopup.input.View() + "\n" + help)
 }
 
 func (m *Model) renderPopup() string {
@@ -163,11 +193,6 @@ func (m *Model) renderNormalView() string {
 	b.WriteString("\n")
 
 	b.WriteString(m.renderStash())
-
-	if m.focusInput {
-		b.WriteString(m.input.View())
-		b.WriteString("\n")
-	}
 
 	if m.err != nil {
 		b.WriteString("\n")

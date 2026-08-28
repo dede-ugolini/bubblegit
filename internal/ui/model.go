@@ -50,6 +50,27 @@ type stashBranchPopup struct {
 	active bool
 }
 
+// inputAction identifies which git action inputPopup should dispatch on
+// submit - one popup, several purposes, same as commitPopup.reword.
+type inputAction int
+
+const (
+	inputActionNewBranch inputAction = iota
+	inputActionRenameBranch
+	inputActionPushStash
+)
+
+type inputPopup struct {
+	input  textinput.Model
+	active bool
+	action inputAction
+	title  string
+
+	// renameFrom is the branch being renamed, captured when the popup is
+	// opened. It's read only by inputActionRenameBranch.
+	renameFrom string
+}
+
 type Model struct {
 	dir string
 
@@ -78,6 +99,8 @@ type Model struct {
 
 	stashBranchPopup stashBranchPopup
 
+	inputPopup inputPopup
+
 	focus int
 	diff  viewport.Model
 	err   error
@@ -87,24 +110,21 @@ type Model struct {
 
 	panelFullScreen bool
 
-	input        textinput.Model
-	focusInput   bool
-	renameBranch string
-	stashInput   bool
-
 	ready    bool
 	quitting bool
 }
 
 func NewModel(dir string) Model {
 	return Model{
-		dir:   dir,
-		input: textinput.New(),
+		dir: dir,
 		commitPopup: commitPopup{
 			commitSummary: textinput.New(),
 			commitMessage: textarea.New(),
 		},
 		stashBranchPopup: stashBranchPopup{
+			input: textinput.New(),
+		},
+		inputPopup: inputPopup{
 			input: textinput.New(),
 		},
 	}
