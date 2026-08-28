@@ -326,6 +326,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "c":
 			if m.focus == focusStag && len(m.files) > 0 && git.HasOneStaged(m.files) {
 				m.commitPopup.reword = false
+				m.commitPopup.rewordHash = ""
 				m.commitPopup.focus = commitFocusSummary
 				m.commitPopup.commitSummary.SetWidth(m.width / 3)
 				m.commitPopup.commitMessage.SetWidth(m.width / 3)
@@ -340,13 +341,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		case "R":
-			if m.focus == focusLog && len(m.log) > 0 && m.idxLog == 0 {
+			if m.focus == focusLog && len(m.log) > 0 {
+				entry := m.log[m.idxLog]
 				m.commitPopup.reword = true
+				m.commitPopup.rewordHash = entry.Hash
 				m.commitPopup.focus = commitFocusSummary
 				m.commitPopup.commitSummary.SetWidth(m.width / 3)
 				m.commitPopup.commitMessage.SetWidth(m.width / 3)
-				m.commitPopup.commitSummary.SetValue(m.log[0].Subject)
-				m.commitPopup.commitMessage.SetValue(m.log[0].Body)
+				m.commitPopup.commitSummary.SetValue(entry.Subject)
+				m.commitPopup.commitMessage.SetValue(entry.Body)
 				m.commitPopup.commitSummary.Placeholder = "Commit summary"
 				m.commitPopup.commitMessage.Placeholder = "Commit message"
 				m.commitPopup.commitSummary.Focus()
@@ -698,9 +701,14 @@ func (m *Model) handleCommit() tea.Msg {
 	}
 
 	var err error
-	if m.commitPopup.reword {
+	switch {
+	case m.commitPopup.reword && len(m.log) > 0 && m.commitPopup.rewordHash == m.log[0].Hash:
+		// Rewording HEAD is a plain amend: no rebase, and it doesn't care
+		// about the working tree being dirty the way rebase would.
 		err = git.Ammend(m.dir, full)
-	} else {
+	case m.commitPopup.reword:
+		err = git.RewordCommit(m.dir, m.commitPopup.rewordHash, full)
+	default:
 		err = git.Commit(m.dir, full)
 	}
 	if err != nil {

@@ -42,6 +42,7 @@ type commitPopup struct {
 	focus         int
 	active        bool
 	reword        bool
+	rewordHash    string
 }
 
 type stashBranchPopup struct {

@@ -47,7 +47,7 @@
 * [x] Commit
 * [x] Amend commit
 * [ ] Drop commit
-* [ ] Reword commit
+* [x] Reword commit
 * [ ] Edit commit
 * [ ] Squash commits
 * [ ] Fixup commits
