@@ -417,6 +417,13 @@ func Commit(dir, message string) error {
 	return err
 }
 
+func Ammend(dir, message string) error {
+	cmd := exec.Command("git", "commit", "--amend", "-m", message)
+	cmd.Dir = dir
+	_, err := cmd.CombinedOutput()
+	return err
+}
+
 // StashEntry is one entry from `git stash list`.
 type StashEntry struct {
 	Ref     string // e.g. "stash@{0}"

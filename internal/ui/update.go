@@ -395,6 +395,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 				}
 			}
+		case "A":
+			if m.focus == focusStag && len(m.files) > 0 {
+				if git.HasOneStaged(m.files) {
+					return m, func() tea.Msg {
+						err := git.Ammend(m.dir, m.log[0].Subject)
+						if err != nil {
+							return errMsg{err}
+						}
+						files, err := git.Status(m.dir)
+						if err != nil {
+							return errMsg{err: err}
+						}
+						return filesMsg(files)
+					}
+				}
+			}
 		case "c":
 			if m.focus == focusStag && len(m.files) > 0 && git.HasOneStaged(m.files) {
 				m.commitPopup.focus = commitFocusSummary

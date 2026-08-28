@@ -45,7 +45,7 @@
 ## Commit
 
 * [x] Commit
-* [ ] Amend commit
+* [x] Amend commit
 * [ ] Drop commit
 * [ ] Reword commit
 * [ ] Edit commit
