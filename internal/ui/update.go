@@ -240,7 +240,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, m.handleDeleteBranch
 			}
 			// Restore file
-			if m.focus == focusStag && len(m.branches) > 0 {
+			if m.focus == focusStag && len(m.files) > 0 {
 				return m, m.handleRestoreFile
 			}
 			// Drop stash
