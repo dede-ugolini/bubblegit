@@ -110,6 +110,9 @@ type Model struct {
 
 	panelFullScreen bool
 
+	themeName string
+	theme     Theme
+
 	ready    bool
 	quitting bool
 }
@@ -127,6 +130,8 @@ func NewModel(dir string) Model {
 		inputPopup: inputPopup{
 			input: textinput.New(),
 		},
+		themeName: themeOrder[0],
+		theme:     themesByName[themeOrder[0]],
 	}
 }
 

@@ -471,6 +471,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.diff.ScrollUp(8)
 		case "pgdown":
 			m.diff.ScrollDown(8)
+
+		case "t":
+			// Cycle theme
+			m.themeName, m.theme = nextTheme(m.themeName)
 		}
 	}
 

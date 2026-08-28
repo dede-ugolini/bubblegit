@@ -7,8 +7,6 @@ import (
 	"charm.land/lipgloss/v2"
 )
 
-var errStyle = lipgloss.NewStyle().Foreground(colorError)
-
 // visibleWindow returns the [start, end) bounds of a scrolling window over
 // n items in a panel of the given rendered height. Border top+bottom eat 2
 // rows; without this, a list bigger than the panel's height renders every
@@ -130,35 +128,35 @@ func (m Model) View() tea.View {
 }
 
 func (m *Model) renderStashClearConfirmPopup() string {
-	help := lipgloss.NewStyle().Foreground(colorMuted).
+	help := lipgloss.NewStyle().Foreground(m.theme.Muted).
 		Render("y/enter confirm · n/esc cancel")
 
 	return lipgloss.NewStyle().
 		Width(m.width / 3).
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(colorFocusBorder).
+		BorderForeground(m.theme.FocusBorder).
 		Render("Remove all stash entries?\n\n" + help)
 }
 
 func (m *Model) renderStashBranchPopup() string {
-	help := lipgloss.NewStyle().Foreground(colorMuted).
+	help := lipgloss.NewStyle().Foreground(m.theme.Muted).
 		Render("enter confirm · esc cancel")
 
 	return lipgloss.NewStyle().
 		Width(m.width / 3).
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(colorFocusBorder).
+		BorderForeground(m.theme.FocusBorder).
 		Render("Branch from stash\n\n" + m.stashBranchPopup.input.View() + "\n" + help)
 }
 
 func (m *Model) renderInputPopup() string {
-	help := lipgloss.NewStyle().Foreground(colorMuted).
+	help := lipgloss.NewStyle().Foreground(m.theme.Muted).
 		Render("enter confirm · esc cancel")
 
 	return lipgloss.NewStyle().
 		Width(m.width / 3).
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(colorFocusBorder).
+		BorderForeground(m.theme.FocusBorder).
 		Render(m.inputPopup.title + "\n\n" + m.inputPopup.input.View() + "\n" + help)
 }
 
@@ -196,19 +194,19 @@ func (m *Model) renderNormalView() string {
 
 	if m.err != nil {
 		b.WriteString("\n")
-		b.WriteString(errStyle.Render(m.err.Error()))
+		b.WriteString(lipgloss.NewStyle().Foreground(m.theme.Error).Render(m.err.Error()))
 	}
 
 	return lipgloss.JoinHorizontal(
 		lipgloss.Left, b.String(), m.renderDiff(),
-	) + "\n" + renderFooter(m.focus)
+	) + "\n" + m.renderFooter()
 }
 
 func (m *Model) renderDiff() string {
 	if m.focus == focusDiff {
 		return lipgloss.NewStyle().
 			Border(lipgloss.NormalBorder(), true).
-			BorderForeground(colorFocusBorder).
+			BorderForeground(m.theme.FocusBorder).
 			Height(m.diff.Height()).
 			Width(m.diff.Width()).
 			Render(m.diff.View())
@@ -225,9 +223,9 @@ func (m *Model) renderFiles() string {
 		return ""
 	}
 	var s []string
-	red := lipgloss.NewStyle().Foreground(colorRemoved)
-	green := lipgloss.NewStyle().Foreground(colorAdded)
-	yellow := lipgloss.NewStyle().Foreground(colorConflict)
+	red := lipgloss.NewStyle().Foreground(m.theme.Removed)
+	green := lipgloss.NewStyle().Foreground(m.theme.Added)
+	yellow := lipgloss.NewStyle().Foreground(m.theme.Conflict)
 
 	start, end := visibleWindow(len(m.files), m.filesHeight, m.idxFiles)
 	for i := start; i < end; i++ {
@@ -241,7 +239,7 @@ func (m *Model) renderFiles() string {
 			// individually first and only then wrapping the joined line in
 			// Width(...).Background(...) would hit the same nested-reset
 			// issue as log/stash - see there.
-			s = append(s, lipgloss.NewStyle().Width(m.filesWidth).Background(colorAccent).Render(stag+worktree+" "+path))
+			s = append(s, lipgloss.NewStyle().Width(m.filesWidth).Background(m.theme.Accent).Render(stag+worktree+" "+path))
 			continue
 		}
 
@@ -275,7 +273,7 @@ func (m *Model) renderFiles() string {
 	if m.focus == focusStag {
 		return lipgloss.NewStyle().
 			Border(lipgloss.NormalBorder(), true).
-			BorderForeground(colorFocusBorder).
+			BorderForeground(m.theme.FocusBorder).
 			Height(m.filesHeight).
 			Render(strings.Join(s, "\n"))
 	}
@@ -300,12 +298,12 @@ func (m *Model) renderBranches() string {
 			// name first and only then wrapping in Width(...).Background(...)
 			// would hit the same nested-reset issue as log/stash - see
 			// there.
-			names = append(names, lipgloss.NewStyle().Width(m.branchWidth).Background(colorCursor).Render(b.Name))
+			names = append(names, lipgloss.NewStyle().Width(m.branchWidth).Background(m.theme.Cursor).Render(b.Name))
 			continue
 		}
 		name := b.Name
 		if b.Current {
-			name = lipgloss.NewStyle().Foreground(colorAccent).Render(name)
+			name = lipgloss.NewStyle().Foreground(m.theme.Accent).Render(name)
 		}
 		names = append(names, lipgloss.NewStyle().Width(m.branchWidth).Render(name))
 	}
@@ -319,7 +317,7 @@ func (m *Model) renderBranches() string {
 	if m.focus == focusBranch {
 		return lipgloss.NewStyle().
 			Border(lipgloss.NormalBorder(), true).
-			BorderForeground(colorFocusBorder).
+			BorderForeground(m.theme.FocusBorder).
 			Height(m.branchHeight).
 			Render(strings.Join(names, "\n"))
 	}
@@ -336,8 +334,8 @@ func (m *Model) renderLog() string {
 	}
 
 	start, end := visibleWindow(len(m.log), m.logHeight, m.idxLog)
-	dateColor := lipgloss.NewStyle().Foreground(lipgloss.ANSIColor(12))
-	shortHashColor := lipgloss.NewStyle().Foreground(lipgloss.ANSIColor(14))
+	dateColor := lipgloss.NewStyle().Foreground(m.theme.Date)
+	shortHashColor := lipgloss.NewStyle().Foreground(m.theme.Hash)
 
 	var entrys []string
 	for i := start; i < end; i++ {
@@ -348,7 +346,7 @@ func (m *Model) renderLog() string {
 			// Background() - would wipe the highlight out from under the
 			// date and subject the moment it's hit (\x1b[m clears every
 			// SGR attribute, not just foreground).
-			entrys = append(entrys, lipgloss.NewStyle().Width(m.logWidth).Background(colorCursor).Render(l.ShortHash+" "+l.Date+" "+l.Subject))
+			entrys = append(entrys, lipgloss.NewStyle().Width(m.logWidth).Background(m.theme.Cursor).Render(l.ShortHash+" "+l.Date+" "+l.Subject))
 			continue
 		}
 		date := dateColor.Render(l.Date)
@@ -363,7 +361,7 @@ func (m *Model) renderLog() string {
 	if m.focus == focusLog {
 		return lipgloss.NewStyle().
 			Border(lipgloss.NormalBorder(), true).
-			BorderForeground(colorFocusBorder).
+			BorderForeground(m.theme.FocusBorder).
 			Height(m.logHeight).
 			Render(strings.Join(entrys, "\n"))
 	}
@@ -379,8 +377,8 @@ func (m *Model) renderStash() string {
 	}
 
 	start, end := visibleWindow(len(m.stashes), m.stashHeight, m.idxStash)
-	dateColor := lipgloss.NewStyle().Foreground(lipgloss.ANSIColor(12))
-	refColor := lipgloss.NewStyle().Foreground(lipgloss.ANSIColor(14))
+	dateColor := lipgloss.NewStyle().Foreground(m.theme.Date)
+	refColor := lipgloss.NewStyle().Foreground(m.theme.Hash)
 
 	var entrys []string
 	for i := start; i < end; i++ {
@@ -392,7 +390,7 @@ func (m *Model) renderStash() string {
 			// message the moment it's hit (\x1b[m clears every SGR
 			// attribute, not just foreground).
 			line := s.Ref + " " + s.Date + " " + s.Message
-			entrys = append(entrys, lipgloss.NewStyle().Width(m.stashWidth).Background(colorCursor).Render(line))
+			entrys = append(entrys, lipgloss.NewStyle().Width(m.stashWidth).Background(m.theme.Cursor).Render(line))
 			continue
 		}
 		date := dateColor.Render(s.Date)
@@ -411,7 +409,7 @@ func (m *Model) renderStash() string {
 	if m.focus == focusStash {
 		return lipgloss.NewStyle().
 			Border(lipgloss.NormalBorder(), true).
-			BorderForeground(colorFocusBorder).
+			BorderForeground(m.theme.FocusBorder).
 			Height(m.stashHeight).
 			Render(strings.Join(entrys, "\n"))
 	}
@@ -421,20 +419,20 @@ func (m *Model) renderStash() string {
 		Render(strings.Join(entrys, "\n"))
 }
 
-func renderFooter(focus int) string {
-	helpStyle := lipgloss.NewStyle().Foreground(colorMuted)
-	switch focus {
+func (m *Model) renderFooter() string {
+	helpStyle := lipgloss.NewStyle().Foreground(m.theme.Muted)
+	switch m.focus {
 	case focusStag:
-		return helpStyle.Render("↑/k ↓/j move · <space> stag · a stag/unstag all · d restore · 0 diff · 1 files · 2 branches · 3 log · 4 stash · q quit")
+		return helpStyle.Render("↑/k ↓/j move · <space> stag · a stag/unstag all · d restore · t theme · 0 diff · 1 files · 2 branches · 3 log · 4 stash · q quit")
 	case focusBranch:
-		return helpStyle.Render("↑/k ↓/j move · enter checkout · n new branch · r rename · d delete · 0 diff · 1 files · 2 branches · 3 log · 4 stash · q quit")
+		return helpStyle.Render("↑/k ↓/j move · enter checkout · n new branch · r rename · d delete · t theme · 0 diff · 1 files · 2 branches · 3 log · 4 stash · q quit")
 	case focusLog:
-		return helpStyle.Render("↑/k ↓/j move · pgup/pgdown scroll · R reword · 0 diff · 1 files · 2 branches · 3 log · 4 stash · q quit")
+		return helpStyle.Render("↑/k ↓/j move · pgup/pgdown scroll · R reword · t theme · 0 diff · 1 files · 2 branches · 3 log · 4 stash · q quit")
 	case focusStash:
-		return helpStyle.Render("↑/k ↓/j move · enter apply · n new stash · p pop · b branch · d drop · D clear all · 0 diff · 1 files · 2 branches · 3 log · 4 stash · q quit")
+		return helpStyle.Render("↑/k ↓/j move · enter apply · n new stash · p pop · b branch · d drop · D clear all · t theme · 0 diff · 1 files · 2 branches · 3 log · 4 stash · q quit")
 	case focusDiff:
-		return helpStyle.Render("↑/k ↓/j move · pgup/pgdown scroll · 0 diff · 1 files · 2 branches · 3 log · 4 stash · q quit")
+		return helpStyle.Render("↑/k ↓/j move · pgup/pgdown scroll · t theme · 0 diff · 1 files · 2 branches · 3 log · 4 stash · q quit")
 	default:
-		return helpStyle.Render("0 diff · 1 files · 2 branches · 3 log · 4 stash · q quit")
+		return helpStyle.Render("t theme · 0 diff · 1 files · 2 branches · 3 log · 4 stash · q quit")
 	}
 }
