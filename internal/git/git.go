@@ -129,8 +129,10 @@ func ResetAll(dir string) error {
 	return nil
 }
 
+// Restore reverts the file to its HEAD state, discarding both staged and
+// unstaged changes.
 func Restore(dir, path string) error {
-	cmd := exec.Command("git", "restore", "--", path)
+	cmd := exec.Command("git", "restore", "--staged", "--worktree", "--", path)
 	cmd.Dir = dir
 	out, err := cmd.CombinedOutput()
 	if err != nil {

@@ -167,6 +167,86 @@ func TestStatusIntegration(t *testing.T) {
 	})
 }
 
+func TestRestore(t *testing.T) {
+	dir := initRepo(t)
+	if err := writeFile(dir, "hello.go", "package main\n"); err != nil {
+		t.Fatal(err)
+	}
+	run(t, dir, "git", "add", "hello.go")
+	run(t, dir, "git", "commit", "-m", "add hello")
+
+	t.Run("unstaged change", func(t *testing.T) {
+		if err := writeFile(dir, "hello.go", "package main\n// unstaged\n"); err != nil {
+			t.Fatal(err)
+		}
+		if err := Restore(dir, "hello.go"); err != nil {
+			t.Fatalf("Restore() error: %v", err)
+		}
+		content, err := os.ReadFile(filepath.Join(dir, "hello.go"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := string(content); got != "package main\n" {
+			t.Errorf("hello.go = %q, want %q", got, "package main\n")
+		}
+	})
+
+	t.Run("staged change", func(t *testing.T) {
+		if err := writeFile(dir, "hello.go", "package main\n// staged\n"); err != nil {
+			t.Fatal(err)
+		}
+		run(t, dir, "git", "add", "hello.go")
+
+		status, err := Status(dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(status) != 1 || !status[0].Staged() {
+			t.Fatalf("expected staged entry, got %#v", status)
+		}
+
+		if err := Restore(dir, "hello.go"); err != nil {
+			t.Fatalf("Restore() error: %v", err)
+		}
+
+		content, err := os.ReadFile(filepath.Join(dir, "hello.go"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := string(content); got != "package main\n" {
+			t.Errorf("hello.go = %q, want %q", got, "package main\n")
+		}
+		if status, err := Status(dir); err != nil || len(status) != 0 {
+			t.Errorf("status after restore = %#v (err=%v), want empty", status, err)
+		}
+	})
+
+	t.Run("staged and modified", func(t *testing.T) {
+		if err := writeFile(dir, "hello.go", "package main\n// staged\n"); err != nil {
+			t.Fatal(err)
+		}
+		run(t, dir, "git", "add", "hello.go")
+		if err := writeFile(dir, "hello.go", "package main\n// staged && worktree\n"); err != nil {
+			t.Fatal(err)
+		}
+
+		if err := Restore(dir, "hello.go"); err != nil {
+			t.Fatalf("Restore() error: %v", err)
+		}
+
+		content, err := os.ReadFile(filepath.Join(dir, "hello.go"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := string(content); got != "package main\n" {
+			t.Errorf("hello.go = %q, want %q", got, "package main\n")
+		}
+		if status, err := Status(dir); err != nil || len(status) != 0 {
+			t.Errorf("status after restore = %#v (err=%v), want empty", status, err)
+		}
+	})
+}
+
 func TestCheckout(t *testing.T) {
 	dir := initRepo(t)
 	branch := defaultBranch(t, dir)
