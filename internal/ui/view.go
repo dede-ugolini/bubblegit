@@ -299,27 +299,39 @@ func (m *Model) renderLog() string {
 	}
 
 	start, end := visibleWindow(len(m.log), m.logHeight, m.idxLog)
+	dateColor := lipgloss.NewStyle().Foreground(lipgloss.ANSIColor(12))
+	shortHashColor := lipgloss.NewStyle().Foreground(lipgloss.ANSIColor(14))
 
 	var entrys []string
 	for i := start; i < end; i++ {
 		l := m.log[i]
 		if i == m.idxLog && m.focus == focusLog {
+			// Deliberately plain text here: dateColor/shortHashColor each
+			// end in their own ANSI reset, which - nested inside this
+			// Background() - would wipe the highlight out from under the
+			// date and subject the moment it's hit (\x1b[m clears every
+			// SGR attribute, not just foreground).
 			entrys = append(entrys, lipgloss.NewStyle().Width(m.logWidth).Background(colorCursor).Render(l.ShortHash+" "+l.Date+" "+l.Subject))
 			continue
 		}
-		entrys = append(entrys, lipgloss.NewStyle().Width(m.logWidth).Render(l.ShortHash+" "+l.Date+" "+l.Subject))
+		date := dateColor.Render(l.Date)
+		shortHash := shortHashColor.Render(l.ShortHash)
+		entrys = append(entrys, lipgloss.NewStyle().Width(m.logWidth).Render(shortHash+" "+date+" "+l.Subject))
+	}
+	// The outer style deliberately has no Width of its own - see the
+	// matching note in renderStash below.
+	if len(entrys) == 0 {
+		entrys = append(entrys, lipgloss.NewStyle().Width(m.logWidth).Render(""))
 	}
 	if m.focus == focusLog {
 		return lipgloss.NewStyle().
 			Border(lipgloss.NormalBorder(), true).
 			BorderForeground(colorFocusBorder).
-			Width(m.logWidth).
 			Height(m.logHeight).
 			Render(strings.Join(entrys, "\n"))
 	}
 	return lipgloss.NewStyle().
 		Border(lipgloss.NormalBorder(), true).
-		Width(m.logWidth).
 		Height(m.logHeight).
 		Render(strings.Join(entrys, "\n"))
 }
@@ -330,15 +342,25 @@ func (m *Model) renderStash() string {
 	}
 
 	start, end := visibleWindow(len(m.stashes), m.stashHeight, m.idxStash)
+	dateColor := lipgloss.NewStyle().Foreground(lipgloss.ANSIColor(12))
+	refColor := lipgloss.NewStyle().Foreground(lipgloss.ANSIColor(14))
 
 	var entrys []string
 	for i := start; i < end; i++ {
 		s := m.stashes[i]
-		line := s.Ref + " " + s.Date + " " + s.Message
 		if i == m.idxStash && m.focus == focusStash {
+			// Deliberately plain text here: dateColor/refColor each end in
+			// their own ANSI reset, which - nested inside this Background()
+			// - would wipe the highlight out from under the date and
+			// message the moment it's hit (\x1b[m clears every SGR
+			// attribute, not just foreground).
+			line := s.Ref + " " + s.Date + " " + s.Message
 			entrys = append(entrys, lipgloss.NewStyle().Width(m.stashWidth).Background(colorCursor).Render(line))
 			continue
 		}
+		date := dateColor.Render(s.Date)
+		ref := refColor.Render(s.Ref)
+		line := ref + " " + date + " " + s.Message
 		entrys = append(entrys, lipgloss.NewStyle().Width(m.stashWidth).Render(line))
 	}
 	// The outer style deliberately has no Width of its own (re-applying
