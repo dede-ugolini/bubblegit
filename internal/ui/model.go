@@ -16,8 +16,8 @@ const (
 	focusStag = iota
 	focusBranch
 	focusLog
-	focusDiff
 	focusStash
+	focusDiff
 	focusCount
 )
 
