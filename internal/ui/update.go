@@ -357,24 +357,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, textinput.Blink
 			}
 
-		case "R":
-			if m.focus == focusLog && len(m.log) > 0 {
-				entry := m.log[m.idxLog]
-				m.commitPopup.reword = true
-				m.commitPopup.rewordHash = entry.Hash
-				m.commitPopup.focus = commitFocusSummary
-				m.commitPopup.commitSummary.SetWidth(m.width / 3)
-				m.commitPopup.commitMessage.SetWidth(m.width / 3)
-				m.commitPopup.commitSummary.SetValue(entry.Subject)
-				m.commitPopup.commitMessage.SetValue(entry.Body)
-				m.commitPopup.commitSummary.Placeholder = "Commit summary"
-				m.commitPopup.commitMessage.Placeholder = "Commit message"
-				m.commitPopup.commitSummary.Focus()
-				m.commitPopup.commitMessage.Blur()
-				m.commitPopup.active = true
-				return m, textinput.Blink
-			}
-
 		case "+":
 			if !m.panelFullScreen {
 				m.panelFullScreen = true
@@ -732,6 +714,23 @@ func (m *Model) handleCommit() tea.Msg {
 		return errMsg{err}
 	}
 	return nil
+}
+
+func (m *Model) handleRewordCommit() tea.Cmd {
+	entry := m.log[m.idxLog]
+	m.commitPopup.reword = true
+	m.commitPopup.rewordHash = entry.Hash
+	m.commitPopup.focus = commitFocusSummary
+	m.commitPopup.commitSummary.SetWidth(m.width / 3)
+	m.commitPopup.commitMessage.SetWidth(m.width / 3)
+	m.commitPopup.commitSummary.SetValue(entry.Subject)
+	m.commitPopup.commitMessage.SetValue(entry.Body)
+	m.commitPopup.commitSummary.Placeholder = "Commit summary"
+	m.commitPopup.commitMessage.Placeholder = "Commit message"
+	m.commitPopup.commitSummary.Focus()
+	m.commitPopup.commitMessage.Blur()
+	m.commitPopup.active = true
+	return textinput.Blink
 }
 
 func (m *Model) moveFile(delta int) {
