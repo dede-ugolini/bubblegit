@@ -509,6 +509,17 @@ func StashDrop(dir, ref string) error {
 	return nil
 }
 
+// StashClear removes every stash entry.
+func StashClear(dir string) error {
+	cmd := exec.Command("git", "stash", "clear")
+	cmd.Dir = dir
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("%s", strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
 // StashShowDelta renders a stash entry's diff through delta. `git show` on
 // a stash prints a combined "diff --cc" (it's a merge commit); `stash show
 // -p` is the form that produces a normal unified diff.

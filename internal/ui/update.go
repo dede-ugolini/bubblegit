@@ -8,6 +8,29 @@ import (
 )
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if m.stashClearConfirm {
+		if key, ok := msg.(tea.KeyMsg); ok {
+			switch key.String() {
+			case "y", "enter":
+				m.stashClearConfirm = false
+				return m, func() tea.Msg {
+					if err := git.StashClear(m.dir); err != nil {
+						return errMsg{err}
+					}
+					stashes, err := git.Stashes(m.dir)
+					if err != nil {
+						return errMsg{err}
+					}
+					return stashesMsg(stashes)
+				}
+			case "n", "esc":
+				m.stashClearConfirm = false
+				return m, nil
+			}
+		}
+		return m, nil
+	}
+
 	if m.commitPopup.active {
 		if key, ok := msg.(tea.KeyMsg); ok {
 			switch key.String() {
@@ -277,6 +300,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 					return stashesMsg(stashes)
 				}
+			}
+
+		case "D":
+			if m.focus == focusStash && len(m.stashes) > 0 {
+				m.stashClearConfirm = true
 			}
 
 		case "n":

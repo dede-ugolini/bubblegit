@@ -38,10 +38,40 @@ func (m Model) View() tea.View {
 		return v
 	}
 
+	if m.stashClearConfirm {
+		popupWidth := m.width / 3
+		popupHeight := m.height / 8
+
+		popup := lipgloss.NewLayer(m.renderStashClearConfirmPopup()).
+			X((m.width - popupWidth) / 2).
+			Y((m.height - popupHeight) / 2).
+			Z(1)
+
+		base := lipgloss.NewLayer(m.renderNormalView()).
+			Z(0)
+
+		c := lipgloss.NewCompositor(base, popup)
+		v := tea.NewView(c.Render())
+		v.AltScreen = true
+		v.MouseMode = tea.MouseModeCellMotion
+		return v
+	}
+
 	v := tea.NewView(m.renderNormalView())
 	v.AltScreen = true
 	v.MouseMode = tea.MouseModeCellMotion
 	return v
+}
+
+func (m *Model) renderStashClearConfirmPopup() string {
+	help := lipgloss.NewStyle().Foreground(lipgloss.Color("240")).
+		Render("y/enter confirm · n/esc cancel")
+
+	return lipgloss.NewStyle().
+		Width(m.width / 3).
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.ANSIColor(222)).
+		Render("Remove all stash entries?\n\n" + help)
 }
 
 func (m *Model) renderPopup() string {
@@ -288,6 +318,14 @@ func (m *Model) renderStash() string {
 		}
 		entrys = append(entrys, lipgloss.NewStyle().Width(m.stashWidth).Render(line))
 	}
+	// The outer style deliberately has no Width of its own (re-applying
+	// Width on top of an already width-padded, already-styled line
+	// corrupts its background - see the highlighted branch below). That
+	// means an empty list has nothing to establish the panel's width, so
+	// the border collapses to zero. Pad a single blank line to hold it.
+	if len(entrys) == 0 {
+		entrys = append(entrys, lipgloss.NewStyle().Width(m.stashWidth).Render(""))
+	}
 	if m.focus == focusStash {
 		return lipgloss.NewStyle().
 			Border(lipgloss.NormalBorder(), true).
@@ -311,7 +349,7 @@ func renderFooter(focus int) string {
 	case focusLog:
 		return helpStyle.Render("↑/k ↓/j move · pgup/pgdown scroll · 0 diff · 1 files · 2 branches · 3 log · 4 stash · q quit")
 	case focusStash:
-		return helpStyle.Render("↑/k ↓/j move · enter apply · n new stash · d drop · 0 diff · 1 files · 2 branches · 3 log · 4 stash · q quit")
+		return helpStyle.Render("↑/k ↓/j move · enter apply · n new stash · d drop · D clear all · 0 diff · 1 files · 2 branches · 3 log · 4 stash · q quit")
 	case focusDiff:
 		return helpStyle.Render("↑/k ↓/j move · pgup/pgdown scroll · 0 diff · 1 files · 2 branches · 3 log · 4 stash · q quit")
 	default:

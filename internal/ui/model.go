@@ -61,10 +61,11 @@ type Model struct {
 	logHeight int
 	logWidth  int
 
-	stashes     []git.StashEntry
-	idxStash    int
-	stashHeight int
-	stashWidth  int
+	stashes           []git.StashEntry
+	idxStash          int
+	stashHeight       int
+	stashWidth        int
+	stashClearConfirm bool
 
 	commitPopup commitPopup
 
