@@ -7,7 +7,7 @@ import (
 	"charm.land/lipgloss/v2"
 )
 
-var errStyle = lipgloss.NewStyle().Foreground(lipgloss.ANSIColor(1))
+var errStyle = lipgloss.NewStyle().Foreground(colorError)
 
 func (m Model) View() tea.View {
 	if m.quitting {
@@ -64,13 +64,13 @@ func (m Model) View() tea.View {
 }
 
 func (m *Model) renderStashClearConfirmPopup() string {
-	help := lipgloss.NewStyle().Foreground(lipgloss.Color("240")).
+	help := lipgloss.NewStyle().Foreground(colorMuted).
 		Render("y/enter confirm · n/esc cancel")
 
 	return lipgloss.NewStyle().
 		Width(m.width / 3).
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.ANSIColor(222)).
+		BorderForeground(colorFocusBorder).
 		Render("Remove all stash entries?\n\n" + help)
 }
 
@@ -125,7 +125,7 @@ func (m *Model) renderDiff() string {
 	if m.focus == focusDiff {
 		return lipgloss.NewStyle().
 			Border(lipgloss.NormalBorder(), true).
-			BorderForeground(lipgloss.ANSIColor(222)).
+			BorderForeground(colorFocusBorder).
 			Height(m.diff.Height()).
 			Width(m.diff.Width()).
 			Render(m.diff.View())
@@ -142,10 +142,10 @@ func (m *Model) renderFiles() string {
 		return ""
 	}
 	var s []string
-	red := lipgloss.NewStyle().Foreground(lipgloss.ANSIColor(lipgloss.Red))
-	green := lipgloss.NewStyle().Foreground(lipgloss.ANSIColor(lipgloss.Green))
-	yellow := lipgloss.NewStyle().Foreground(lipgloss.ANSIColor(lipgloss.Yellow))
-	sel := lipgloss.NewStyle().Background(lipgloss.ANSIColor(11))
+	red := lipgloss.NewStyle().Foreground(colorRemoved)
+	green := lipgloss.NewStyle().Foreground(colorAdded)
+	yellow := lipgloss.NewStyle().Foreground(colorConflict)
+	sel := lipgloss.NewStyle().Background(colorAccent)
 
 	for i, f := range m.files {
 		stag := string(f.Index)
@@ -185,7 +185,7 @@ func (m *Model) renderFiles() string {
 	if m.focus == focusStag {
 		return lipgloss.NewStyle().
 			Border(lipgloss.NormalBorder(), true).
-			BorderForeground(lipgloss.ANSIColor(222)).
+			BorderForeground(colorFocusBorder).
 			Width(m.filesWidth).
 			Height(m.filesHeight).
 			Render(strings.Join(s, "\n"))
@@ -207,10 +207,10 @@ func (m *Model) renderBranches() string {
 	for i, b := range m.branches {
 		name := b.Name
 		if b.Current {
-			name = lipgloss.NewStyle().Foreground(lipgloss.ANSIColor(11)).Render(name)
+			name = lipgloss.NewStyle().Foreground(colorAccent).Render(name)
 		}
 		if m.idxBranch == i {
-			name = lipgloss.NewStyle().Background(lipgloss.ANSIColor(9)).Render(name)
+			name = lipgloss.NewStyle().Background(colorCursor).Render(name)
 		}
 		names = append(names, name)
 	}
@@ -218,7 +218,7 @@ func (m *Model) renderBranches() string {
 	if m.focus == focusBranch {
 		return lipgloss.NewStyle().
 			Border(lipgloss.NormalBorder(), true).
-			BorderForeground(lipgloss.ANSIColor(222)).
+			BorderForeground(colorFocusBorder).
 			Width(m.branchWidth).
 			Height(m.branchHeight).
 			Render(strings.Join(names, "\n"))
@@ -263,7 +263,7 @@ func (m *Model) renderLog() string {
 	for i := start; i < end; i++ {
 		l := m.log[i]
 		if i == m.idxLog && m.focus == focusLog {
-			entrys = append(entrys, lipgloss.NewStyle().Width(m.logWidth).Background(lipgloss.ANSIColor(9)).Render(l.ShortHash+" "+l.Date+" "+l.Subject))
+			entrys = append(entrys, lipgloss.NewStyle().Width(m.logWidth).Background(colorCursor).Render(l.ShortHash+" "+l.Date+" "+l.Subject))
 			continue
 		}
 		entrys = append(entrys, lipgloss.NewStyle().Width(m.logWidth).Render(l.ShortHash+" "+l.Date+" "+l.Subject))
@@ -271,7 +271,7 @@ func (m *Model) renderLog() string {
 	if m.focus == focusLog {
 		return lipgloss.NewStyle().
 			Border(lipgloss.NormalBorder(), true).
-			BorderForeground(lipgloss.ANSIColor(222)).
+			BorderForeground(colorFocusBorder).
 			Width(m.logWidth).
 			Height(m.logHeight).
 			Render(strings.Join(entrys, "\n"))
@@ -313,7 +313,7 @@ func (m *Model) renderStash() string {
 		s := m.stashes[i]
 		line := s.Ref + " " + s.Date + " " + s.Message
 		if i == m.idxStash && m.focus == focusStash {
-			entrys = append(entrys, lipgloss.NewStyle().Width(m.stashWidth).Background(lipgloss.ANSIColor(9)).Render(line))
+			entrys = append(entrys, lipgloss.NewStyle().Width(m.stashWidth).Background(colorCursor).Render(line))
 			continue
 		}
 		entrys = append(entrys, lipgloss.NewStyle().Width(m.stashWidth).Render(line))
@@ -329,7 +329,7 @@ func (m *Model) renderStash() string {
 	if m.focus == focusStash {
 		return lipgloss.NewStyle().
 			Border(lipgloss.NormalBorder(), true).
-			BorderForeground(lipgloss.ANSIColor(222)).
+			BorderForeground(colorFocusBorder).
 			Height(m.stashHeight).
 			Render(strings.Join(entrys, "\n"))
 	}
@@ -340,7 +340,7 @@ func (m *Model) renderStash() string {
 }
 
 func renderFooter(focus int) string {
-	helpStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	helpStyle := lipgloss.NewStyle().Foreground(colorMuted)
 	switch focus {
 	case focusStag:
 		return helpStyle.Render("↑/k ↓/j move · <space> stag · a stag/unstag all · d restore · 0 diff · 1 files · 2 branches · 3 log · 4 stash · q quit")
