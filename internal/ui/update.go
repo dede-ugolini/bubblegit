@@ -13,16 +13,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			switch key.String() {
 			case "y", "enter":
 				m.stashClearConfirm = false
-				return m, func() tea.Msg {
-					if err := git.StashClear(m.dir); err != nil {
-						return errMsg{err}
-					}
-					stashes, err := git.Stashes(m.dir)
-					if err != nil {
-						return errMsg{err}
-					}
-					return stashesMsg(stashes)
-				}
+				return m, m.handleClearStash
 			case "n", "esc":
 				m.stashClearConfirm = false
 				return m, nil
@@ -35,23 +26,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if key, ok := msg.(tea.KeyMsg); ok {
 			switch key.String() {
 			case "ctrl+s":
-				summary := m.commitPopup.commitSummary.Value()
-				if summary == "" {
+				if m.commitPopup.commitSummary.Value() == "" {
 					return m, nil
 				}
-				message := m.commitPopup.commitMessage.Value()
 				m.commitPopup.commitSummary.Blur()
 				m.commitPopup.commitMessage.Blur()
 				m.commitPopup.active = false
-				return m, tea.Batch(
-					func() tea.Msg {
-						if err := git.Commit(m.dir, summary+"\n"+message); err != nil {
-							return errMsg{err}
-						}
-						return nil
-					},
-					m.Refresh(),
-				)
+				return m, tea.Batch(m.handleCommit, m.Refresh())
 			case "tab":
 				if m.commitPopup.focus == commitFocusSummary {
 					m.commitPopup.commitSummary.Blur()
@@ -91,45 +72,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			switch key.String() {
 			case "enter":
 				name := m.input.Value()
-				old := m.renameBranch
 				stashInput := m.stashInput
 				m.focusInput = false
-				m.renameBranch = ""
 				m.stashInput = false
 				if stashInput {
-					return m, func() tea.Msg {
-						if err := git.StashPush(m.dir, name); err != nil {
-							return errMsg{err}
-						}
-						stashes, err := git.Stashes(m.dir)
-						if err != nil {
-							return errMsg{err}
-						}
-						return stashesMsg(stashes)
-					}
+					return m, m.handlePushStash
 				}
 				if name == "" {
+					m.renameBranch = ""
 					return m, nil
 				}
-				return m, func() tea.Msg {
-					if old != "" {
-						if err := git.RenameBranch(m.dir, old, name); err != nil {
-							return errMsg{err}
-						}
-					} else {
-						if err := git.CreateBranch(m.dir, name); err != nil {
-							return errMsg{err}
-						}
-						if err := git.Checkout(m.dir, name); err != nil {
-							return errMsg{err}
-						}
-					}
-					branches, err := git.Branches(m.dir)
-					if err != nil {
-						return errMsg{err}
-					}
-					return branchesMsg(branches)
+				if m.renameBranch != "" {
+					renaming := m.renameBranch
+					m.renameBranch = ""
+					return m, func() tea.Msg { return m.handleRenameBranch(renaming) }
 				}
+				m.renameBranch = ""
+				return m, m.handleCreateBranch
 			case "esc":
 				m.focusInput = false
 				m.renameBranch = ""
@@ -254,52 +213,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, m.showDiff()
 
 		case "d":
+			// Delete Branch
 			if m.focus == focusBranch && len(m.branches) > 0 {
-				branch := m.branches[m.idxBranch].Name
-				return m, func() tea.Msg {
-					err := git.DeleteBranch(m.dir, branch)
-					if err != nil {
-						return errMsg{err}
-					}
-					branches, err := git.Branches(m.dir)
-					if err != nil {
-						return errMsg{err}
-					}
-					return branchesMsg(branches)
-				}
+				return m, m.handleDeleteBranch
 			}
+			// Restore file
 			if m.focus == focusStag && len(m.branches) > 0 {
-				return m, func() tea.Msg {
-					if m.files[m.idxFiles].Untracked() {
-						err := git.RestoreUntracked(m.dir, m.files[m.idxFiles].Path)
-						if err != nil {
-							return errMsg{err}
-						}
-					} else {
-						err := git.Restore(m.dir, m.files[m.idxFiles].Path)
-						if err != nil {
-							return errMsg{err}
-						}
-					}
-					files, err := git.Status(m.dir)
-					if err != nil {
-						return errMsg{err}
-					}
-					return filesMsg(files)
-				}
+				return m, m.handleRestoreFile
 			}
 			if m.focus == focusStash && len(m.stashes) > 0 {
-				ref := m.stashes[m.idxStash].Ref
-				return m, func() tea.Msg {
-					if err := git.StashDrop(m.dir, ref); err != nil {
-						return errMsg{err}
-					}
-					stashes, err := git.Stashes(m.dir)
-					if err != nil {
-						return errMsg{err}
-					}
-					return stashesMsg(stashes)
-				}
+				return m, m.handleDropStash
 			}
 
 		case "D":
@@ -346,112 +269,26 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case "enter":
 			if m.focus == focusBranch && len(m.branches) > 0 {
-				return m, func() tea.Msg {
-					err := git.Checkout(m.dir, m.branches[m.idxBranch].Name)
-					if err != nil {
-						return errMsg{err}
-					}
-					branches, err := git.Branches(m.dir)
-					if err != nil {
-						return errMsg{err}
-					}
-					return branchesMsg(branches)
-				}
+				return m, m.handleCheckoutBranch
 			}
 			if m.focus == focusStash && len(m.stashes) > 0 {
-				ref := m.stashes[m.idxStash].Ref
-				return m, func() tea.Msg {
-					if err := git.StashApply(m.dir, ref); err != nil {
-						return errMsg{err}
-					}
-					files, err := git.Status(m.dir)
-					if err != nil {
-						return errMsg{err}
-					}
-					return filesMsg(files)
-				}
+				return m, m.handleApplyStash
 			}
 		case "space":
 			if m.focus == focusStag && len(m.files) > 0 {
-				return m, func() tea.Msg {
-					if m.files[m.idxFiles].Staged() {
-						err := git.Reset(m.dir, m.files[m.idxFiles].Path)
-						if err != nil {
-							return errMsg{err: err}
-						}
-						files, err := git.Status(m.dir)
-						if err != nil {
-							return errMsg{err: err}
-						}
-						return filesMsg(files)
-					}
-					err := git.Add(m.dir, m.files[m.idxFiles].Path)
-					if err != nil {
-						return errMsg{err: err}
-					}
-					files, err := git.Status(m.dir)
-					if err != nil {
-						return errMsg{err: err}
-					}
-					return filesMsg(files)
-				}
+				return m, m.handleToggleStage
 			}
 		case "a":
 			if m.focus == focusStag && len(m.files) > 0 {
-				return m, func() tea.Msg {
-					if git.AllStaged(m.files) {
-						err := git.ResetAll(m.dir)
-						if err != nil {
-							return errMsg{err}
-						}
-						files, err := git.Status(m.dir)
-						if err != nil {
-							return errMsg{err: err}
-						}
-						return filesMsg(files)
-
-					} else {
-						err := git.AddAll(m.dir)
-						if err != nil {
-							return errMsg{err}
-						}
-						files, err := git.Status(m.dir)
-						if err != nil {
-							return errMsg{err: err}
-						}
-						return filesMsg(files)
-					}
-				}
+				return m, m.handleToggleStageAll
 			}
 		case "A":
-			if m.focus == focusStag && len(m.files) > 0 {
-				if git.HasOneStaged(m.files) {
-					return m, func() tea.Msg {
-						err := git.Ammend(m.dir, m.log[0].Subject)
-						if err != nil {
-							return errMsg{err}
-						}
-						files, err := git.Status(m.dir)
-						if err != nil {
-							return errMsg{err: err}
-						}
-						return filesMsg(files)
-					}
-				}
+			if m.focus == focusStag && len(m.files) > 0 && git.HasOneStaged(m.files) {
+				return m, m.handleAmend
 			}
 		case "p":
 			if m.focus == focusStash && len(m.stashes) > 0 {
-				return m, func() tea.Msg {
-					err := git.StashPop(m.dir, m.stashes[m.idxStash].Ref)
-					if err != nil {
-						return errMsg{err}
-					}
-					stashes, err := git.Stashes(m.dir)
-					if err != nil {
-						return errMsg{err}
-					}
-					return stashesMsg(stashes)
-				}
+				return m, m.handlePopStash
 			}
 		case "c":
 			if m.focus == focusStag && len(m.files) > 0 && git.HasOneStaged(m.files) {
@@ -621,6 +458,180 @@ func (m Model) showDiff() tea.Cmd {
 		}
 		return nil
 	}
+}
+
+func (m *Model) handleDeleteBranch() tea.Msg {
+	branch := m.branches[m.idxBranch].Name
+	err := git.DeleteBranch(m.dir, branch)
+	if err != nil {
+		return errMsg{err}
+	}
+	branches, err := git.Branches(m.dir)
+	if err != nil {
+		return errMsg{err}
+	}
+	return branchesMsg(branches)
+}
+
+func (m *Model) handleRestoreFile() tea.Msg {
+	if m.files[m.idxFiles].Untracked() {
+		err := git.RestoreUntracked(m.dir, m.files[m.idxFiles].Path)
+		if err != nil {
+			return errMsg{err}
+		}
+	} else {
+		err := git.Restore(m.dir, m.files[m.idxFiles].Path)
+		if err != nil {
+			return errMsg{err}
+		}
+	}
+	files, err := git.Status(m.dir)
+	if err != nil {
+		return errMsg{err}
+	}
+	return filesMsg(files)
+}
+
+func (m *Model) handleCheckoutBranch() tea.Msg {
+	err := git.Checkout(m.dir, m.branches[m.idxBranch].Name)
+	if err != nil {
+		return errMsg{err}
+	}
+	branches, err := git.Branches(m.dir)
+	if err != nil {
+		return errMsg{err}
+	}
+	return branchesMsg(branches)
+}
+
+func (m *Model) handleApplyStash() tea.Msg {
+	if err := git.StashApply(m.dir, m.stashes[m.idxStash].Ref); err != nil {
+		return errMsg{err}
+	}
+	files, err := git.Status(m.dir)
+	if err != nil {
+		return errMsg{err}
+	}
+	return filesMsg(files)
+}
+
+func (m *Model) handleDropStash() tea.Msg {
+	if err := git.StashDrop(m.dir, m.stashes[m.idxStash].Ref); err != nil {
+		return errMsg{err}
+	}
+	stashes, err := git.Stashes(m.dir)
+	if err != nil {
+		return errMsg{err}
+	}
+	return stashesMsg(stashes)
+}
+
+func (m *Model) handlePopStash() tea.Msg {
+	if err := git.StashPop(m.dir, m.stashes[m.idxStash].Ref); err != nil {
+		return errMsg{err}
+	}
+	stashes, err := git.Stashes(m.dir)
+	if err != nil {
+		return errMsg{err}
+	}
+	return stashesMsg(stashes)
+}
+
+func (m *Model) handleClearStash() tea.Msg {
+	if err := git.StashClear(m.dir); err != nil {
+		return errMsg{err}
+	}
+	stashes, err := git.Stashes(m.dir)
+	if err != nil {
+		return errMsg{err}
+	}
+	return stashesMsg(stashes)
+}
+
+func (m *Model) handlePushStash() tea.Msg {
+	if err := git.StashPush(m.dir, m.input.Value()); err != nil {
+		return errMsg{err}
+	}
+	stashes, err := git.Stashes(m.dir)
+	if err != nil {
+		return errMsg{err}
+	}
+	return stashesMsg(stashes)
+}
+
+func (m *Model) handleRenameBranch(oldName string) tea.Msg {
+	if err := git.RenameBranch(m.dir, oldName, m.input.Value()); err != nil {
+		return errMsg{err}
+	}
+	branches, err := git.Branches(m.dir)
+	if err != nil {
+		return errMsg{err}
+	}
+	return branchesMsg(branches)
+}
+
+func (m *Model) handleCreateBranch() tea.Msg {
+	if err := git.CreateBranch(m.dir, m.input.Value()); err != nil {
+		return errMsg{err}
+	}
+	if err := git.Checkout(m.dir, m.input.Value()); err != nil {
+		return errMsg{err}
+	}
+	branches, err := git.Branches(m.dir)
+	if err != nil {
+		return errMsg{err}
+	}
+	return branchesMsg(branches)
+}
+
+func (m *Model) handleToggleStage() tea.Msg {
+	if m.files[m.idxFiles].Staged() {
+		if err := git.Reset(m.dir, m.files[m.idxFiles].Path); err != nil {
+			return errMsg{err}
+		}
+	} else if err := git.Add(m.dir, m.files[m.idxFiles].Path); err != nil {
+		return errMsg{err}
+	}
+	files, err := git.Status(m.dir)
+	if err != nil {
+		return errMsg{err}
+	}
+	return filesMsg(files)
+}
+
+func (m *Model) handleToggleStageAll() tea.Msg {
+	if git.AllStaged(m.files) {
+		if err := git.ResetAll(m.dir); err != nil {
+			return errMsg{err}
+		}
+	} else if err := git.AddAll(m.dir); err != nil {
+		return errMsg{err}
+	}
+	files, err := git.Status(m.dir)
+	if err != nil {
+		return errMsg{err}
+	}
+	return filesMsg(files)
+}
+
+func (m *Model) handleAmend() tea.Msg {
+	if err := git.Ammend(m.dir, m.log[0].Subject); err != nil {
+		return errMsg{err}
+	}
+	files, err := git.Status(m.dir)
+	if err != nil {
+		return errMsg{err}
+	}
+	return filesMsg(files)
+}
+
+func (m *Model) handleCommit() tea.Msg {
+	summary := m.commitPopup.commitSummary.Value()
+	message := m.commitPopup.commitMessage.Value()
+	if err := git.Commit(m.dir, summary+"\n"+message); err != nil {
+		return errMsg{err}
+	}
+	return nil
 }
 
 func (m *Model) moveFile(delta int) {
