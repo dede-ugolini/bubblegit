@@ -61,11 +61,11 @@
 
 * [x] Stash apply
 * [x] Stash push
-* [ ] Stash pop
+* [x] Stash pop
 * [x] Stash drop
 * [x] Stash show diff
 * [ ] Stash branch
-* [ ] Stash clear
+* [x] Stash clear
 
 ## Remote
 

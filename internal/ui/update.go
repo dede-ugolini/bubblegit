@@ -439,6 +439,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 				}
 			}
+		case "p":
+			if m.focus == focusStash && len(m.stashes) > 0 {
+				return m, func() tea.Msg {
+					err := git.StashPop(m.dir, m.stashes[m.idxStash].Ref)
+					if err != nil {
+						return errMsg{err}
+					}
+					stashes, err := git.Stashes(m.dir)
+					if err != nil {
+						return errMsg{err}
+					}
+					return stashesMsg(stashes)
+				}
+			}
 		case "c":
 			if m.focus == focusStag && len(m.files) > 0 && git.HasOneStaged(m.files) {
 				m.commitPopup.focus = commitFocusSummary

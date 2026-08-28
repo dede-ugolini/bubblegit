@@ -509,6 +509,16 @@ func StashDrop(dir, ref string) error {
 	return nil
 }
 
+func StashPop(dir, ref string) error {
+	cmd := exec.Command("git", "stash", "pop", ref)
+	cmd.Dir = dir
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("%s", strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
 // StashClear removes every stash entry.
 func StashClear(dir string) error {
 	cmd := exec.Command("git", "stash", "clear")
