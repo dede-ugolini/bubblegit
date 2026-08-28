@@ -41,6 +41,7 @@ type commitPopup struct {
 	commitMessage textarea.Model
 	focus         int
 	active        bool
+	reword        bool
 }
 
 type stashBranchPopup struct {

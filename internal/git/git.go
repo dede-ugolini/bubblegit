@@ -27,6 +27,7 @@ type LogEntry struct {
 	Author    string
 	Date      string
 	Subject   string
+	Body      string
 }
 
 // field/record separators unlikely to appear in commit metadata.
@@ -266,7 +267,7 @@ func RenameBranch(dir, oldName, newName string) error {
 
 func Log(dir, rev string, limit int) ([]LogEntry, error) {
 	format := strings.Join(
-		[]string{"%H", "%h", "%an", "%ad", "%s"}, logFieldSep,
+		[]string{"%H", "%h", "%an", "%ad", "%s", "%b"}, logFieldSep,
 	) + logRecordSep
 	cmd := exec.Command(
 		"git",
@@ -295,7 +296,7 @@ func Log(dir, rev string, limit int) ([]LogEntry, error) {
 			continue
 		}
 		f := strings.Split(rec, logFieldSep)
-		if len(f) < 5 {
+		if len(f) < 6 {
 			continue
 		}
 		entries = append(entries, LogEntry{
@@ -304,6 +305,7 @@ func Log(dir, rev string, limit int) ([]LogEntry, error) {
 			Author:    f[2],
 			Date:      f[3],
 			Subject:   f[4],
+			Body:      strings.TrimRight(f[5], "\n"),
 		})
 	}
 	return entries, nil
@@ -413,15 +415,21 @@ func ShowDelta(dir, path string, sideBySide bool, width int) (string, error) {
 func Commit(dir, message string) error {
 	cmd := exec.Command("git", "commit", "-m", message)
 	cmd.Dir = dir
-	_, err := cmd.CombinedOutput()
-	return err
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("%s", strings.TrimSpace(string(out)))
+	}
+	return nil
 }
 
 func Ammend(dir, message string) error {
 	cmd := exec.Command("git", "commit", "--amend", "-m", message)
 	cmd.Dir = dir
-	_, err := cmd.CombinedOutput()
-	return err
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("%s", strings.TrimSpace(string(out)))
+	}
+	return nil
 }
 
 // StashEntry is one entry from `git stash list`.

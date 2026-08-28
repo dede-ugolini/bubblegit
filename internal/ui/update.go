@@ -325,9 +325,28 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "c":
 			if m.focus == focusStag && len(m.files) > 0 && git.HasOneStaged(m.files) {
+				m.commitPopup.reword = false
 				m.commitPopup.focus = commitFocusSummary
 				m.commitPopup.commitSummary.SetWidth(m.width / 3)
 				m.commitPopup.commitMessage.SetWidth(m.width / 3)
+				m.commitPopup.commitSummary.SetValue("")
+				m.commitPopup.commitMessage.SetValue("")
+				m.commitPopup.commitSummary.Placeholder = "Commit summary"
+				m.commitPopup.commitMessage.Placeholder = "Commit message"
+				m.commitPopup.commitSummary.Focus()
+				m.commitPopup.commitMessage.Blur()
+				m.commitPopup.active = true
+				return m, textinput.Blink
+			}
+
+		case "R":
+			if m.focus == focusLog && len(m.log) > 0 && m.idxLog == 0 {
+				m.commitPopup.reword = true
+				m.commitPopup.focus = commitFocusSummary
+				m.commitPopup.commitSummary.SetWidth(m.width / 3)
+				m.commitPopup.commitMessage.SetWidth(m.width / 3)
+				m.commitPopup.commitSummary.SetValue(m.log[0].Subject)
+				m.commitPopup.commitMessage.SetValue(m.log[0].Body)
 				m.commitPopup.commitSummary.Placeholder = "Commit summary"
 				m.commitPopup.commitMessage.Placeholder = "Commit message"
 				m.commitPopup.commitSummary.Focus()
@@ -669,7 +688,22 @@ func (m *Model) handleAmend() tea.Msg {
 func (m *Model) handleCommit() tea.Msg {
 	summary := m.commitPopup.commitSummary.Value()
 	message := m.commitPopup.commitMessage.Value()
-	if err := git.Commit(m.dir, summary+"\n"+message); err != nil {
+	// Git splits subject from body on a blank line: %s stops at the first
+	// blank line and folds anything before it onto one line, so a single
+	// "\n" here would merge the body into the subject instead of keeping
+	// them separate.
+	full := summary
+	if message != "" {
+		full = summary + "\n\n" + message
+	}
+
+	var err error
+	if m.commitPopup.reword {
+		err = git.Ammend(m.dir, full)
+	} else {
+		err = git.Commit(m.dir, full)
+	}
+	if err != nil {
 		return errMsg{err}
 	}
 	return nil

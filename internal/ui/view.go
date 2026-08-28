@@ -377,7 +377,7 @@ func renderFooter(focus int) string {
 	case focusBranch:
 		return helpStyle.Render("↑/k ↓/j move · enter checkout · n new branch · r rename · d delete · 0 diff · 1 files · 2 branches · 3 log · 4 stash · q quit")
 	case focusLog:
-		return helpStyle.Render("↑/k ↓/j move · pgup/pgdown scroll · 0 diff · 1 files · 2 branches · 3 log · 4 stash · q quit")
+		return helpStyle.Render("↑/k ↓/j move · pgup/pgdown scroll · R reword HEAD · 0 diff · 1 files · 2 branches · 3 log · 4 stash · q quit")
 	case focusStash:
 		return helpStyle.Render("↑/k ↓/j move · enter apply · n new stash · p pop · b branch · d drop · D clear all · 0 diff · 1 files · 2 branches · 3 log · 4 stash · q quit")
 	case focusDiff:
