@@ -9,6 +9,34 @@ import (
 
 var errStyle = lipgloss.NewStyle().Foreground(colorError)
 
+// visibleWindow returns the [start, end) bounds of a scrolling window over
+// n items in a panel of the given rendered height. Border top+bottom eat 2
+// rows; without this, a list bigger than the panel's height renders every
+// entry and grows the box past height, throwing off the rest of the
+// layout. The window is centered on idx (clamped to the list's bounds) so
+// the cursor stays in view as it moves.
+func visibleWindow(n, height, idx int) (start, end int) {
+	visible := height - 2
+	if visible < 1 {
+		visible = 1
+	}
+
+	if n > visible {
+		start = idx - visible/2
+		if start < 0 {
+			start = 0
+		}
+		if start > n-visible {
+			start = n - visible
+		}
+	}
+	end = start + visible
+	if end > n {
+		end = n
+	}
+	return start, end
+}
+
 func (m Model) View() tea.View {
 	if m.quitting {
 		return tea.NewView("")
@@ -177,7 +205,9 @@ func (m *Model) renderFiles() string {
 	yellow := lipgloss.NewStyle().Foreground(colorConflict)
 	sel := lipgloss.NewStyle().Background(colorAccent)
 
-	for i, f := range m.files {
+	start, end := visibleWindow(len(m.files), m.filesHeight, m.idxFiles)
+	for i := start; i < end; i++ {
+		f := m.files[i]
 		stag := string(f.Index)
 		worktree := string(f.Worktree)
 		path := f.Path
@@ -234,7 +264,9 @@ func (m *Model) renderBranches() string {
 	}
 	var names []string
 
-	for i, b := range m.branches {
+	start, end := visibleWindow(len(m.branches), m.branchHeight, m.idxBranch)
+	for i := start; i < end; i++ {
+		b := m.branches[i]
 		name := b.Name
 		if b.Current {
 			name = lipgloss.NewStyle().Foreground(colorAccent).Render(name)
@@ -262,32 +294,11 @@ func (m *Model) renderBranches() string {
 }
 
 func (m *Model) renderLog() string {
-	// Border top+bottom eat 2 rows; without windowing, a log limit bigger
-	// than the panel's height renders every entry and grows the box past
-	// m.logHeight, throwing off the rest of the layout.
 	if m.logHeight <= 0 || m.logWidth <= 0 {
 		return ""
 	}
 
-	visible := m.logHeight - 2
-	if visible < 1 {
-		visible = 1
-	}
-
-	start := 0
-	if len(m.log) > visible {
-		start = m.idxLog - visible/2
-		if start < 0 {
-			start = 0
-		}
-		if start > len(m.log)-visible {
-			start = len(m.log) - visible
-		}
-	}
-	end := start + visible
-	if end > len(m.log) {
-		end = len(m.log)
-	}
+	start, end := visibleWindow(len(m.log), m.logHeight, m.idxLog)
 
 	var entrys []string
 	for i := start; i < end; i++ {
@@ -318,25 +329,7 @@ func (m *Model) renderStash() string {
 		return ""
 	}
 
-	visible := m.stashHeight - 2
-	if visible < 1 {
-		visible = 1
-	}
-
-	start := 0
-	if len(m.stashes) > visible {
-		start = m.idxStash - visible/2
-		if start < 0 {
-			start = 0
-		}
-		if start > len(m.stashes)-visible {
-			start = len(m.stashes) - visible
-		}
-	}
-	end := start + visible
-	if end > len(m.stashes) {
-		end = len(m.stashes)
-	}
+	start, end := visibleWindow(len(m.stashes), m.stashHeight, m.idxStash)
 
 	var entrys []string
 	for i := start; i < end; i++ {
