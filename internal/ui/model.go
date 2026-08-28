@@ -6,6 +6,7 @@ import (
 
 	"bubblegit/internal/git"
 
+	"charm.land/bubbles/v2/textarea"
 	"charm.land/bubbles/v2/textinput"
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
@@ -16,6 +17,7 @@ const (
 	focusBranch
 	focusLog
 	focusDiff
+	focusStash
 	focusCount
 )
 
@@ -23,10 +25,30 @@ type (
 	filesMsg    []git.FileStatus
 	branchesMsg []git.BranchInfo
 	logMsg      []git.LogEntry
+	stashesMsg  []git.StashEntry
 	diffMsg     struct{ diff string }
 	errMsg      struct{ err error }
 	tickMsg     struct{}
 )
+
+const (
+	commitFocusSummary = iota
+	commitFocusMessage
+)
+
+type commitPopup struct {
+	commitSummary textinput.Model
+	commitMessage textarea.Model
+	focus         int
+	active        bool
+	reword        bool
+	rewordHash    string
+}
+
+type stashBranchPopup struct {
+	input  textinput.Model
+	active bool
+}
 
 type Model struct {
 	dir string
@@ -46,6 +68,16 @@ type Model struct {
 	logHeight int
 	logWidth  int
 
+	stashes           []git.StashEntry
+	idxStash          int
+	stashHeight       int
+	stashWidth        int
+	stashClearConfirm bool
+
+	commitPopup commitPopup
+
+	stashBranchPopup stashBranchPopup
+
 	focus int
 	diff  viewport.Model
 	err   error
@@ -58,6 +90,7 @@ type Model struct {
 	input        textinput.Model
 	focusInput   bool
 	renameBranch string
+	stashInput   bool
 
 	ready    bool
 	quitting bool
@@ -67,6 +100,13 @@ func NewModel(dir string) Model {
 	return Model{
 		dir:   dir,
 		input: textinput.New(),
+		commitPopup: commitPopup{
+			commitSummary: textinput.New(),
+			commitMessage: textarea.New(),
+		},
+		stashBranchPopup: stashBranchPopup{
+			input: textinput.New(),
+		},
 	}
 }
 
@@ -102,6 +142,13 @@ func (m Model) Refresh() tea.Cmd {
 				return errMsg{err}
 			}
 			return logMsg(log)
+		},
+		func() tea.Msg {
+			stashes, err := git.Stashes(m.dir)
+			if err != nil {
+				return errMsg{err}
+			}
+			return stashesMsg(stashes)
 		},
 	)
 }

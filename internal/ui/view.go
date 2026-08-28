@@ -7,7 +7,35 @@ import (
 	"charm.land/lipgloss/v2"
 )
 
-var errStyle = lipgloss.NewStyle().Foreground(lipgloss.ANSIColor(1))
+var errStyle = lipgloss.NewStyle().Foreground(colorError)
+
+// visibleWindow returns the [start, end) bounds of a scrolling window over
+// n items in a panel of the given rendered height. Border top+bottom eat 2
+// rows; without this, a list bigger than the panel's height renders every
+// entry and grows the box past height, throwing off the rest of the
+// layout. The window is centered on idx (clamped to the list's bounds) so
+// the cursor stays in view as it moves.
+func visibleWindow(n, height, idx int) (start, end int) {
+	visible := height - 2
+	if visible < 1 {
+		visible = 1
+	}
+
+	if n > visible {
+		start = idx - visible/2
+		if start < 0 {
+			start = 0
+		}
+		if start > n-visible {
+			start = n - visible
+		}
+	}
+	end = start + visible
+	if end > n {
+		end = n
+	}
+	return start, end
+}
 
 func (m Model) View() tea.View {
 	if m.quitting {
@@ -19,6 +47,110 @@ func (m Model) View() tea.View {
 		return tea.NewView("Loading...")
 	}
 
+	if m.commitPopup.active {
+		popupWidth := m.width / 4
+		popupHeight := m.height / 4
+
+		popup := lipgloss.NewLayer(m.renderPopup()).
+			X((m.width - popupWidth) / 2).
+			Y((m.height - popupHeight) / 2).
+			Z(1)
+
+		base := lipgloss.NewLayer(m.renderNormalView()).
+			Z(0)
+
+		c := lipgloss.NewCompositor(base, popup)
+		v := tea.NewView(c.Render())
+		v.AltScreen = true
+		v.MouseMode = tea.MouseModeCellMotion
+		return v
+	}
+
+	if m.stashBranchPopup.active {
+		popupWidth := m.width / 3
+		popupHeight := m.height / 8
+
+		popup := lipgloss.NewLayer(m.renderStashBranchPopup()).
+			X((m.width - popupWidth) / 2).
+			Y((m.height - popupHeight) / 2).
+			Z(1)
+
+		base := lipgloss.NewLayer(m.renderNormalView()).
+			Z(0)
+
+		c := lipgloss.NewCompositor(base, popup)
+		v := tea.NewView(c.Render())
+		v.AltScreen = true
+		v.MouseMode = tea.MouseModeCellMotion
+		return v
+	}
+
+	if m.stashClearConfirm {
+		popupWidth := m.width / 3
+		popupHeight := m.height / 8
+
+		popup := lipgloss.NewLayer(m.renderStashClearConfirmPopup()).
+			X((m.width - popupWidth) / 2).
+			Y((m.height - popupHeight) / 2).
+			Z(1)
+
+		base := lipgloss.NewLayer(m.renderNormalView()).
+			Z(0)
+
+		c := lipgloss.NewCompositor(base, popup)
+		v := tea.NewView(c.Render())
+		v.AltScreen = true
+		v.MouseMode = tea.MouseModeCellMotion
+		return v
+	}
+
+	v := tea.NewView(m.renderNormalView())
+	v.AltScreen = true
+	v.MouseMode = tea.MouseModeCellMotion
+	return v
+}
+
+func (m *Model) renderStashClearConfirmPopup() string {
+	help := lipgloss.NewStyle().Foreground(colorMuted).
+		Render("y/enter confirm · n/esc cancel")
+
+	return lipgloss.NewStyle().
+		Width(m.width / 3).
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(colorFocusBorder).
+		Render("Remove all stash entries?\n\n" + help)
+}
+
+func (m *Model) renderStashBranchPopup() string {
+	help := lipgloss.NewStyle().Foreground(colorMuted).
+		Render("enter confirm · esc cancel")
+
+	return lipgloss.NewStyle().
+		Width(m.width / 3).
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(colorFocusBorder).
+		Render("Branch from stash\n\n" + m.stashBranchPopup.input.View() + "\n" + help)
+}
+
+func (m *Model) renderPopup() string {
+	var summary, message string
+	width := m.width / 3
+
+	summary = lipgloss.NewStyle().
+		Width(width).
+		Border(lipgloss.RoundedBorder()).
+		Render(m.commitPopup.commitSummary.View())
+
+	message = lipgloss.NewStyle().
+		Width(width).
+		Height(m.height / 4).
+		Border(lipgloss.RoundedBorder()).
+		Render(m.commitPopup.commitMessage.View())
+
+	return summary + "\n" + message
+}
+
+func (m *Model) renderNormalView() string {
 	var b strings.Builder
 
 	b.WriteString(m.renderFiles())
@@ -27,8 +159,10 @@ func (m Model) View() tea.View {
 	b.WriteString(m.renderBranches())
 	b.WriteString("\n")
 
-	b.WriteString("\n")
 	b.WriteString(m.renderLog())
+	b.WriteString("\n")
+
+	b.WriteString(m.renderStash())
 
 	if m.focusInput {
 		b.WriteString(m.input.View())
@@ -39,21 +173,17 @@ func (m Model) View() tea.View {
 		b.WriteString("\n")
 		b.WriteString(errStyle.Render(m.err.Error()))
 	}
-	v := tea.NewView(
-		lipgloss.JoinHorizontal(
-			lipgloss.Left,
-			b.String(), m.renderDiff(),
-		) + "\n" + renderFooter(m.focus))
-	v.AltScreen = true
-	v.MouseMode = tea.MouseModeCellMotion
-	return v
+
+	return lipgloss.JoinHorizontal(
+		lipgloss.Left, b.String(), m.renderDiff(),
+	) + "\n" + renderFooter(m.focus)
 }
 
 func (m *Model) renderDiff() string {
 	if m.focus == focusDiff {
 		return lipgloss.NewStyle().
 			Border(lipgloss.NormalBorder(), true).
-			BorderForeground(lipgloss.ANSIColor(222)).
+			BorderForeground(colorFocusBorder).
 			Height(m.diff.Height()).
 			Width(m.diff.Width()).
 			Render(m.diff.View())
@@ -70,12 +200,14 @@ func (m *Model) renderFiles() string {
 		return ""
 	}
 	var s []string
-	red := lipgloss.NewStyle().Foreground(lipgloss.ANSIColor(lipgloss.Red))
-	green := lipgloss.NewStyle().Foreground(lipgloss.ANSIColor(lipgloss.Green))
-	yellow := lipgloss.NewStyle().Foreground(lipgloss.ANSIColor(lipgloss.Yellow))
-	sel := lipgloss.NewStyle().Background(lipgloss.ANSIColor(11))
+	red := lipgloss.NewStyle().Foreground(colorRemoved)
+	green := lipgloss.NewStyle().Foreground(colorAdded)
+	yellow := lipgloss.NewStyle().Foreground(colorConflict)
+	sel := lipgloss.NewStyle().Background(colorAccent)
 
-	for i, f := range m.files {
+	start, end := visibleWindow(len(m.files), m.filesHeight, m.idxFiles)
+	for i := start; i < end; i++ {
+		f := m.files[i]
 		stag := string(f.Index)
 		worktree := string(f.Worktree)
 		path := f.Path
@@ -113,7 +245,7 @@ func (m *Model) renderFiles() string {
 	if m.focus == focusStag {
 		return lipgloss.NewStyle().
 			Border(lipgloss.NormalBorder(), true).
-			BorderForeground(lipgloss.ANSIColor(222)).
+			BorderForeground(colorFocusBorder).
 			Width(m.filesWidth).
 			Height(m.filesHeight).
 			Render(strings.Join(s, "\n"))
@@ -132,13 +264,15 @@ func (m *Model) renderBranches() string {
 	}
 	var names []string
 
-	for i, b := range m.branches {
+	start, end := visibleWindow(len(m.branches), m.branchHeight, m.idxBranch)
+	for i := start; i < end; i++ {
+		b := m.branches[i]
 		name := b.Name
 		if b.Current {
-			name = lipgloss.NewStyle().Foreground(lipgloss.ANSIColor(11)).Render(name)
+			name = lipgloss.NewStyle().Foreground(colorAccent).Render(name)
 		}
 		if m.idxBranch == i {
-			name = lipgloss.NewStyle().Background(lipgloss.ANSIColor(9)).Render(name)
+			name = lipgloss.NewStyle().Background(colorCursor).Render(name)
 		}
 		names = append(names, name)
 	}
@@ -146,7 +280,7 @@ func (m *Model) renderBranches() string {
 	if m.focus == focusBranch {
 		return lipgloss.NewStyle().
 			Border(lipgloss.NormalBorder(), true).
-			BorderForeground(lipgloss.ANSIColor(222)).
+			BorderForeground(colorFocusBorder).
 			Width(m.branchWidth).
 			Height(m.branchHeight).
 			Render(strings.Join(names, "\n"))
@@ -160,38 +294,17 @@ func (m *Model) renderBranches() string {
 }
 
 func (m *Model) renderLog() string {
-	// Border top+bottom eat 2 rows; without windowing, a log limit bigger
-	// than the panel's height renders every entry and grows the box past
-	// m.logHeight, throwing off the rest of the layout.
 	if m.logHeight <= 0 || m.logWidth <= 0 {
 		return ""
 	}
 
-	visible := m.logHeight - 2
-	if visible < 1 {
-		visible = 1
-	}
-
-	start := 0
-	if len(m.log) > visible {
-		start = m.idxLog - visible/2
-		if start < 0 {
-			start = 0
-		}
-		if start > len(m.log)-visible {
-			start = len(m.log) - visible
-		}
-	}
-	end := start + visible
-	if end > len(m.log) {
-		end = len(m.log)
-	}
+	start, end := visibleWindow(len(m.log), m.logHeight, m.idxLog)
 
 	var entrys []string
 	for i := start; i < end; i++ {
 		l := m.log[i]
 		if i == m.idxLog && m.focus == focusLog {
-			entrys = append(entrys, lipgloss.NewStyle().Width(m.logWidth).Background(lipgloss.ANSIColor(9)).Render(l.ShortHash+" "+l.Date+" "+l.Subject))
+			entrys = append(entrys, lipgloss.NewStyle().Width(m.logWidth).Background(colorCursor).Render(l.ShortHash+" "+l.Date+" "+l.Subject))
 			continue
 		}
 		entrys = append(entrys, lipgloss.NewStyle().Width(m.logWidth).Render(l.ShortHash+" "+l.Date+" "+l.Subject))
@@ -199,7 +312,7 @@ func (m *Model) renderLog() string {
 	if m.focus == focusLog {
 		return lipgloss.NewStyle().
 			Border(lipgloss.NormalBorder(), true).
-			BorderForeground(lipgloss.ANSIColor(222)).
+			BorderForeground(colorFocusBorder).
 			Width(m.logWidth).
 			Height(m.logHeight).
 			Render(strings.Join(entrys, "\n"))
@@ -211,18 +324,58 @@ func (m *Model) renderLog() string {
 		Render(strings.Join(entrys, "\n"))
 }
 
+func (m *Model) renderStash() string {
+	if m.stashHeight <= 0 || m.stashWidth <= 0 {
+		return ""
+	}
+
+	start, end := visibleWindow(len(m.stashes), m.stashHeight, m.idxStash)
+
+	var entrys []string
+	for i := start; i < end; i++ {
+		s := m.stashes[i]
+		line := s.Ref + " " + s.Date + " " + s.Message
+		if i == m.idxStash && m.focus == focusStash {
+			entrys = append(entrys, lipgloss.NewStyle().Width(m.stashWidth).Background(colorCursor).Render(line))
+			continue
+		}
+		entrys = append(entrys, lipgloss.NewStyle().Width(m.stashWidth).Render(line))
+	}
+	// The outer style deliberately has no Width of its own (re-applying
+	// Width on top of an already width-padded, already-styled line
+	// corrupts its background - see the highlighted branch below). That
+	// means an empty list has nothing to establish the panel's width, so
+	// the border collapses to zero. Pad a single blank line to hold it.
+	if len(entrys) == 0 {
+		entrys = append(entrys, lipgloss.NewStyle().Width(m.stashWidth).Render(""))
+	}
+	if m.focus == focusStash {
+		return lipgloss.NewStyle().
+			Border(lipgloss.NormalBorder(), true).
+			BorderForeground(colorFocusBorder).
+			Height(m.stashHeight).
+			Render(strings.Join(entrys, "\n"))
+	}
+	return lipgloss.NewStyle().
+		Border(lipgloss.NormalBorder(), true).
+		Height(m.stashHeight).
+		Render(strings.Join(entrys, "\n"))
+}
+
 func renderFooter(focus int) string {
-	helpStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	helpStyle := lipgloss.NewStyle().Foreground(colorMuted)
 	switch focus {
 	case focusStag:
-		return helpStyle.Render("↑/k ↓/j move · <space> stag · a stag/unstag all · d restore · 0 diff · 1 files · 2 branches · 3 log · q quit")
+		return helpStyle.Render("↑/k ↓/j move · <space> stag · a stag/unstag all · d restore · 0 diff · 1 files · 2 branches · 3 log · 4 stash · q quit")
 	case focusBranch:
-		return helpStyle.Render("↑/k ↓/j move · enter checkout · n new branch · r rename · d delete · 0 diff · 1 files · 2 branches · 3 log · q quit")
+		return helpStyle.Render("↑/k ↓/j move · enter checkout · n new branch · r rename · d delete · 0 diff · 1 files · 2 branches · 3 log · 4 stash · q quit")
 	case focusLog:
-		return helpStyle.Render("↑/k ↓/j move · pgup/pgdown scroll · 0 diff · 1 files · 2 branches · 3 log · q quit")
+		return helpStyle.Render("↑/k ↓/j move · pgup/pgdown scroll · R reword · 0 diff · 1 files · 2 branches · 3 log · 4 stash · q quit")
+	case focusStash:
+		return helpStyle.Render("↑/k ↓/j move · enter apply · n new stash · p pop · b branch · d drop · D clear all · 0 diff · 1 files · 2 branches · 3 log · 4 stash · q quit")
 	case focusDiff:
-		return helpStyle.Render("↑/k ↓/j move · pgup/pgdown scroll · 0 diff · 1 files · 2 branches · 3 log · q quit")
+		return helpStyle.Render("↑/k ↓/j move · pgup/pgdown scroll · 0 diff · 1 files · 2 branches · 3 log · 4 stash · q quit")
 	default:
-		return helpStyle.Render("0 diff · 1 files · 2 branches · 3 log · q quit")
+		return helpStyle.Render("0 diff · 1 files · 2 branches · 3 log · 4 stash · q quit")
 	}
 }

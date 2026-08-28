@@ -4,9 +4,12 @@ package git
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"os/exec"
 	"sort"
+	"strconv"
 	"strings"
+	"time"
 )
 
 // FileStatus represents one line of `git status --porcelain` output.
@@ -25,6 +28,7 @@ type LogEntry struct {
 	Author    string
 	Date      string
 	Subject   string
+	Body      string
 }
 
 // field/record separators unlikely to appear in commit metadata.
@@ -171,6 +175,15 @@ func AllStaged(files []FileStatus) bool {
 	return true
 }
 
+func HasOneStaged(files []FileStatus) bool {
+	for _, f := range files {
+		if f.Staged() {
+			return true
+		}
+	}
+	return false
+}
+
 type BranchInfo struct {
 	Name    string
 	Current bool
@@ -255,7 +268,7 @@ func RenameBranch(dir, oldName, newName string) error {
 
 func Log(dir, rev string, limit int) ([]LogEntry, error) {
 	format := strings.Join(
-		[]string{"%H", "%h", "%an", "%ad", "%s"}, logFieldSep,
+		[]string{"%H", "%h", "%an", "%ad", "%s", "%b"}, logFieldSep,
 	) + logRecordSep
 	cmd := exec.Command(
 		"git",
@@ -284,7 +297,7 @@ func Log(dir, rev string, limit int) ([]LogEntry, error) {
 			continue
 		}
 		f := strings.Split(rec, logFieldSep)
-		if len(f) < 5 {
+		if len(f) < 6 {
 			continue
 		}
 		entries = append(entries, LogEntry{
@@ -293,6 +306,7 @@ func Log(dir, rev string, limit int) ([]LogEntry, error) {
 			Author:    f[2],
 			Date:      f[3],
 			Subject:   f[4],
+			Body:      strings.TrimRight(f[5], "\n"),
 		})
 	}
 	return entries, nil
@@ -374,6 +388,227 @@ func Show(dir, hash string) (string, error) {
 
 func ShowDelta(dir, path string, sideBySide bool, width int) (string, error) {
 	git := exec.Command("git", "show", "--color=always", "--stat", "--patch", path)
+	git.Dir = dir
+	diff, err := git.Output()
+	if err != nil {
+		return "", err
+	}
+	delta := exec.Command(
+		"delta",
+		"--no-gitconfig",
+		"--paging=never",
+		"--line-numbers",
+	)
+	if sideBySide {
+		delta.Args = append(delta.Args, "--side-by-side", fmt.Sprintf("--width=%d", width))
+	}
+	delta.Stdin = bytes.NewReader(diff)
+
+	var output bytes.Buffer
+	delta.Stdout = &output
+
+	if err := delta.Run(); err != nil {
+		return "", err
+	}
+	return output.String(), nil
+}
+
+func Commit(dir, message string) error {
+	cmd := exec.Command("git", "commit", "-m", message)
+	cmd.Dir = dir
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("%s", strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
+func Ammend(dir, message string) error {
+	cmd := exec.Command("git", "commit", "--amend", "-m", message)
+	cmd.Dir = dir
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("%s", strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
+// RewordCommit replaces the message of an arbitrary (not necessarily HEAD)
+// commit in the current branch's history, via a scripted, non-interactive
+// `git rebase -i`. Every commit after hash is replayed on top with its
+// original tree unchanged - only hash's message and, as an unavoidable
+// consequence, every descendant's hash, are rewritten.
+//
+// Rebasing needs the two spots where it would normally stop and hand
+// control to an editor - the todo list and the commit message - driven
+// non-interactively instead:
+//   - GIT_SEQUENCE_EDITOR rewrites the first line of the todo list ("pick
+//     <hash> ...") to "reword", since hash is always the oldest commit
+//     being replayed (the rebase base is hash^) and so always lands first.
+//   - GIT_EDITOR overwrites whatever commit-message file git hands it with
+//     the message we already wrote to a temp file, sidestepping the need
+//     to safely quote arbitrary commit-message text into a shell command.
+func RewordCommit(dir, hash, message string) error {
+	msgFile, err := os.CreateTemp("", "bubblegit-reword-*.txt")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(msgFile.Name())
+	if _, err := msgFile.WriteString(message); err != nil {
+		msgFile.Close()
+		return err
+	}
+	if err := msgFile.Close(); err != nil {
+		return err
+	}
+
+	base := hash + "^"
+	verify := exec.Command("git", "rev-parse", "--verify", "-q", base)
+	verify.Dir = dir
+	if err := verify.Run(); err != nil {
+		// hash has no parent: it's the root commit.
+		base = "--root"
+	}
+
+	cmd := exec.Command("git", "rebase", "-i", base)
+	cmd.Dir = dir
+	cmd.Env = append(os.Environ(),
+		"GIT_SEQUENCE_EDITOR=sed -i '1s/^pick /reword /'",
+		"GIT_EDITOR=cp "+msgFile.Name(),
+	)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		abort := exec.Command("git", "rebase", "--abort")
+		abort.Dir = dir
+		_ = abort.Run()
+		return fmt.Errorf("%s", strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
+// StashEntry is one entry from `git stash list`.
+type StashEntry struct {
+	Ref     string // e.g. "stash@{0}"
+	Date    string
+	Message string
+}
+
+// Stashes lists the stash entries, most recent first.
+func Stashes(dir string) ([]StashEntry, error) {
+	// %gd must be requested without a --date flag: as soon as one is
+	// present git renders the reflog selector as a date instead of the
+	// numeric "stash@{N}" index. So the timestamp is pulled separately
+	// via %ct and formatted here instead.
+	format := strings.Join([]string{"%gd", "%ct", "%s"}, logFieldSep) + logRecordSep
+	cmd := exec.Command("git", "stash", "list", "--pretty=format:"+format)
+	cmd.Dir = dir
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("%s", strings.TrimSpace(string(out)))
+	}
+	if string(out) == "" {
+		return nil, nil
+	}
+	var stashes []StashEntry
+	for rec := range strings.SplitSeq(string(out), logRecordSep) {
+		rec = strings.TrimPrefix(rec, "\n")
+		if rec == "" {
+			continue
+		}
+		f := strings.Split(rec, logFieldSep)
+		if len(f) < 3 {
+			continue
+		}
+		date := f[1]
+		if ts, err := strconv.ParseInt(f[1], 10, 64); err == nil {
+			date = time.Unix(ts, 0).Format("2006-01-02")
+		}
+		stashes = append(stashes, StashEntry{
+			Ref:     f[0],
+			Date:    date,
+			Message: f[2],
+		})
+	}
+	return stashes, nil
+}
+
+// StashPush stashes tracked changes (staged and unstaged), optionally
+// under the given message.
+func StashPush(dir, message string) error {
+	args := []string{"stash", "push"}
+	if message != "" {
+		args = append(args, "-m", message)
+	}
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("%s", strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
+// StashApply applies a stash entry to the working tree, leaving it in the
+// stash list.
+func StashApply(dir, ref string) error {
+	cmd := exec.Command("git", "stash", "apply", ref)
+	cmd.Dir = dir
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("%s", strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
+// StashDrop removes a stash entry.
+func StashDrop(dir, ref string) error {
+	cmd := exec.Command("git", "stash", "drop", ref)
+	cmd.Dir = dir
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("%s", strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
+// StashBranch creates and checks out a new branch from the stash's
+// original commit, applies the stash, and drops it from the list.
+func StashBranch(dir, branch, ref string) error {
+	cmd := exec.Command("git", "stash", "branch", branch, ref)
+	cmd.Dir = dir
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("%s", strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
+func StashPop(dir, ref string) error {
+	cmd := exec.Command("git", "stash", "pop", ref)
+	cmd.Dir = dir
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("%s", strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
+// StashClear removes every stash entry.
+func StashClear(dir string) error {
+	cmd := exec.Command("git", "stash", "clear")
+	cmd.Dir = dir
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("%s", strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
+// StashShowDelta renders a stash entry's diff through delta. `git show` on
+// a stash prints a combined "diff --cc" (it's a merge commit); `stash show
+// -p` is the form that produces a normal unified diff.
+func StashShowDelta(dir, ref string, sideBySide bool, width int) (string, error) {
+	git := exec.Command("git", "stash", "show", "-p", "--no-color", ref)
 	git.Dir = dir
 	diff, err := git.Output()
 	if err != nil {
