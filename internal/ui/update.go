@@ -22,6 +22,28 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	if m.stashBranchPopup.active {
+		if key, ok := msg.(tea.KeyMsg); ok {
+			switch key.String() {
+			case "enter":
+				name := m.stashBranchPopup.input.Value()
+				if name == "" {
+					return m, nil
+				}
+				m.stashBranchPopup.input.Blur()
+				m.stashBranchPopup.active = false
+				return m, tea.Batch(m.handleStashBranch, m.Refresh())
+			case "esc":
+				m.stashBranchPopup.input.Blur()
+				m.stashBranchPopup.active = false
+				return m, nil
+			}
+		}
+		var cmd tea.Cmd
+		m.stashBranchPopup.input, cmd = m.stashBranchPopup.input.Update(msg)
+		return m, cmd
+	}
+
 	if m.commitPopup.active {
 		if key, ok := msg.(tea.KeyMsg); ok {
 			switch key.String() {
@@ -228,6 +250,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "D":
 			if m.focus == focusStash && len(m.stashes) > 0 {
 				m.stashClearConfirm = true
+			}
+
+		case "b":
+			if m.focus == focusStash && len(m.stashes) > 0 {
+				m.stashBranchPopup.input.SetValue("")
+				m.stashBranchPopup.input.SetWidth(m.width / 3)
+				m.stashBranchPopup.input.CharLimit = 100
+				m.stashBranchPopup.input.Placeholder = "branch name"
+				m.stashBranchPopup.input.Focus()
+				m.stashBranchPopup.active = true
+				return m, textinput.Blink
 			}
 
 		case "n":
@@ -557,6 +590,14 @@ func (m *Model) handlePushStash() tea.Msg {
 		return errMsg{err}
 	}
 	return stashesMsg(stashes)
+}
+
+func (m *Model) handleStashBranch() tea.Msg {
+	branch := m.stashBranchPopup.input.Value()
+	if err := git.StashBranch(m.dir, branch, m.stashes[m.idxStash].Ref); err != nil {
+		return errMsg{err}
+	}
+	return nil
 }
 
 func (m *Model) handleRenameBranch(oldName string) tea.Msg {

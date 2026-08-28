@@ -274,6 +274,61 @@ func TestCommit(t *testing.T) {
 	})
 }
 
+func TestStashBranch(t *testing.T) {
+	dir := initRepo(t)
+	if err := writeFile(dir, "hello.go", "package main\n"); err != nil {
+		t.Fatal(err)
+	}
+	run(t, dir, "git", "add", "hello.go")
+	run(t, dir, "git", "commit", "-m", "add hello")
+
+	if err := writeFile(dir, "hello.go", "package main\n// stashed\n"); err != nil {
+		t.Fatal(err)
+	}
+	if err := StashPush(dir, "wip"); err != nil {
+		t.Fatalf("StashPush() error: %v", err)
+	}
+
+	if n, err := lenStashEntries(t, dir); err != nil || n != 1 {
+		t.Fatalf("stash count = %d, want 1 (err=%v)", n, err)
+	}
+
+	if err := StashBranch(dir, "stash-branch", "stash@{0}"); err != nil {
+		t.Fatalf("StashBranch() error: %v", err)
+	}
+
+	if got := currentBranch(t, dir); got != "stash-branch" {
+		t.Errorf("current branch = %q, want %q", got, "stash-branch")
+	}
+
+	content, err := os.ReadFile(filepath.Join(dir, "hello.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := string(content); got != "package main\n// stashed\n" {
+		t.Errorf("hello.go = %q, want stashed content", got)
+	}
+
+	if n, err := lenStashEntries(t, dir); err != nil || n != 0 {
+		t.Fatalf("stash count = %d, want 0 (err=%v)", n, err)
+	}
+}
+
+func lenStashEntries(t *testing.T, dir string) (int, error) {
+	t.Helper()
+	cmd := exec.Command("git", "stash", "list")
+	cmd.Dir = dir
+	out, err := cmd.Output()
+	if err != nil {
+		return 0, err
+	}
+	s := strings.TrimSpace(string(out))
+	if s == "" {
+		return 0, nil
+	}
+	return len(strings.Split(s, "\n")), nil
+}
+
 func currentBranch(t *testing.T, dir string) string {
 	t.Helper()
 	cmd := exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD")

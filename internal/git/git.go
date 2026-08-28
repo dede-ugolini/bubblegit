@@ -509,6 +509,18 @@ func StashDrop(dir, ref string) error {
 	return nil
 }
 
+// StashBranch creates and checks out a new branch from the stash's
+// original commit, applies the stash, and drops it from the list.
+func StashBranch(dir, branch, ref string) error {
+	cmd := exec.Command("git", "stash", "branch", branch, ref)
+	cmd.Dir = dir
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("%s", strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
 func StashPop(dir, ref string) error {
 	cmd := exec.Command("git", "stash", "pop", ref)
 	cmd.Dir = dir

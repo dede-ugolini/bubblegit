@@ -38,6 +38,25 @@ func (m Model) View() tea.View {
 		return v
 	}
 
+	if m.stashBranchPopup.active {
+		popupWidth := m.width / 3
+		popupHeight := m.height / 8
+
+		popup := lipgloss.NewLayer(m.renderStashBranchPopup()).
+			X((m.width - popupWidth) / 2).
+			Y((m.height - popupHeight) / 2).
+			Z(1)
+
+		base := lipgloss.NewLayer(m.renderNormalView()).
+			Z(0)
+
+		c := lipgloss.NewCompositor(base, popup)
+		v := tea.NewView(c.Render())
+		v.AltScreen = true
+		v.MouseMode = tea.MouseModeCellMotion
+		return v
+	}
+
 	if m.stashClearConfirm {
 		popupWidth := m.width / 3
 		popupHeight := m.height / 8
@@ -72,6 +91,17 @@ func (m *Model) renderStashClearConfirmPopup() string {
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(colorFocusBorder).
 		Render("Remove all stash entries?\n\n" + help)
+}
+
+func (m *Model) renderStashBranchPopup() string {
+	help := lipgloss.NewStyle().Foreground(colorMuted).
+		Render("enter confirm · esc cancel")
+
+	return lipgloss.NewStyle().
+		Width(m.width / 3).
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(colorFocusBorder).
+		Render("Branch from stash\n\n" + m.stashBranchPopup.input.View() + "\n" + help)
 }
 
 func (m *Model) renderPopup() string {
@@ -349,7 +379,7 @@ func renderFooter(focus int) string {
 	case focusLog:
 		return helpStyle.Render("↑/k ↓/j move · pgup/pgdown scroll · 0 diff · 1 files · 2 branches · 3 log · 4 stash · q quit")
 	case focusStash:
-		return helpStyle.Render("↑/k ↓/j move · enter apply · n new stash · d drop · D clear all · 0 diff · 1 files · 2 branches · 3 log · 4 stash · q quit")
+		return helpStyle.Render("↑/k ↓/j move · enter apply · n new stash · p pop · b branch · d drop · D clear all · 0 diff · 1 files · 2 branches · 3 log · 4 stash · q quit")
 	case focusDiff:
 		return helpStyle.Render("↑/k ↓/j move · pgup/pgdown scroll · 0 diff · 1 files · 2 branches · 3 log · 4 stash · q quit")
 	default:

@@ -43,6 +43,11 @@ type commitPopup struct {
 	active        bool
 }
 
+type stashBranchPopup struct {
+	input  textinput.Model
+	active bool
+}
+
 type Model struct {
 	dir string
 
@@ -69,6 +74,8 @@ type Model struct {
 
 	commitPopup commitPopup
 
+	stashBranchPopup stashBranchPopup
+
 	focus int
 	diff  viewport.Model
 	err   error
@@ -94,6 +101,9 @@ func NewModel(dir string) Model {
 		commitPopup: commitPopup{
 			commitSummary: textinput.New(),
 			commitMessage: textarea.New(),
+		},
+		stashBranchPopup: stashBranchPopup{
+			input: textinput.New(),
 		},
 	}
 }

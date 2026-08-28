@@ -64,7 +64,7 @@
 * [x] Stash pop
 * [x] Stash drop
 * [x] Stash show diff
-* [ ] Stash branch
+* [x] Stash branch
 * [x] Stash clear
 
 ## Remote
