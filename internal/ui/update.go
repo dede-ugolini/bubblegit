@@ -243,16 +243,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.focus == focusStag && len(m.branches) > 0 {
 				return m, m.handleRestoreFile
 			}
+			// Drop stash
 			if m.focus == focusStash && len(m.stashes) > 0 {
 				return m, m.handleDropStash
 			}
 
 		case "D":
+			// Clear Stash
 			if m.focus == focusStash && len(m.stashes) > 0 {
 				m.stashClearConfirm = true
 			}
 
 		case "b":
+			// Stash branch
 			if m.focus == focusStash && len(m.stashes) > 0 {
 				m.stashBranchPopup.input.SetValue("")
 				m.stashBranchPopup.input.SetWidth(m.width / 3)
@@ -264,6 +267,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		case "n":
+			// Create Branch
 			if m.focus == focusBranch {
 				m.input.SetWidth(20)
 				m.input.CharLimit = 20
@@ -274,6 +278,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.focusInput = true
 				return m, textinput.Blink
 			}
+			// Push stash
 			if m.focus == focusStash {
 				m.input.SetWidth(40)
 				m.input.CharLimit = 72
@@ -287,6 +292,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		case "r":
+			// Rename Branch
 			if m.focus == focusBranch && len(m.branches) > 0 {
 				old := m.branches[m.idxBranch].Name
 				m.renameBranch = old
@@ -299,31 +305,42 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.focusInput = true
 				return m, textinput.Blink
 			}
+			// Reword commit
+			if m.focus == focusLog && len(m.log) > 0 {
+				return m, m.handleRewordCommit()
+			}
 
 		case "enter":
+			// Checkout Branch
 			if m.focus == focusBranch && len(m.branches) > 0 {
 				return m, m.handleCheckoutBranch
 			}
+			// Apply Stash
 			if m.focus == focusStash && len(m.stashes) > 0 {
 				return m, m.handleApplyStash
 			}
 		case "space":
+			// stage/unstage file
 			if m.focus == focusStag && len(m.files) > 0 {
 				return m, m.handleToggleStage
 			}
 		case "a":
+			// stage/unstage all
 			if m.focus == focusStag && len(m.files) > 0 {
 				return m, m.handleToggleStageAll
 			}
 		case "A":
+			// Amend commit
 			if m.focus == focusStag && len(m.files) > 0 && git.HasOneStaged(m.files) {
 				return m, m.handleAmend
 			}
 		case "p":
+			// Pop stash
 			if m.focus == focusStash && len(m.stashes) > 0 {
 				return m, m.handlePopStash
 			}
 		case "c":
+			// Commit
 			if m.focus == focusStag && len(m.files) > 0 && git.HasOneStaged(m.files) {
 				m.commitPopup.reword = false
 				m.commitPopup.rewordHash = ""
