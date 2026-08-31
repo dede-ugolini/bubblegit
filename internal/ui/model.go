@@ -117,6 +117,21 @@ type inputPopup struct {
 	renameFrom string
 }
 
+const (
+	tagFocusName = iota
+	tagFocusMessage
+)
+
+type tagPopup struct {
+	tagName    textinput.Model
+	tagMessage textarea.Model
+	focus      int
+	active     bool
+
+	// hash is the commit being tagged, captured when the popup opens.
+	hash string
+}
+
 type Model struct {
 	dir string
 
@@ -141,6 +156,7 @@ type Model struct {
 	stashWidth        int
 	stashClearConfirm bool
 
+	tagPopup    tagPopup
 	commitPopup commitPopup
 
 	stashBranchPopup stashBranchPopup
@@ -174,6 +190,10 @@ func NewModel(dir string) Model {
 		commitPopup: commitPopup{
 			commitSummary: textinput.New(),
 			commitMessage: textarea.New(),
+		},
+		tagPopup: tagPopup{
+			tagName:    textinput.New(),
+			tagMessage: textarea.New(),
 		},
 		stashBranchPopup: stashBranchPopup{
 			input: textinput.New(),

@@ -64,6 +64,25 @@ func (m Model) View() tea.View {
 		return v
 	}
 
+	if m.tagPopup.active {
+		popupWidth := m.width / 4
+		popupHeight := m.height / 4
+
+		popup := lipgloss.NewLayer(m.renderTagPopup()).
+			X((m.width - popupWidth) / 2).
+			Y((m.height - popupHeight) / 2).
+			Z(1)
+
+		base := lipgloss.NewLayer(m.renderNormalView()).
+			Z(0)
+
+		c := lipgloss.NewCompositor(base, popup)
+		v := tea.NewView(c.Render())
+		v.AltScreen = true
+		v.MouseMode = tea.MouseModeCellMotion
+		return v
+	}
+
 	if m.mergePopup.active {
 		popupWidth := m.width / 3
 		popupHeight := m.height / 5
@@ -218,6 +237,24 @@ func (m *Model) renderPopup() string {
 		Render(m.commitPopup.commitMessage.View())
 
 	return summary + "\n" + message
+}
+
+func (m *Model) renderTagPopup() string {
+	var name, message string
+	width := m.width / 3
+
+	name = lipgloss.NewStyle().
+		Width(width).
+		Border(lipgloss.RoundedBorder()).
+		Render(m.tagPopup.tagName.View())
+
+	message = lipgloss.NewStyle().
+		Width(width).
+		Height(m.height / 4).
+		Border(lipgloss.RoundedBorder()).
+		Render(m.tagPopup.tagMessage.View())
+
+	return name + "\n" + message
 }
 
 func (m *Model) renderNormalView() string {
@@ -474,7 +511,7 @@ func (m *Model) renderFooter() string {
 	case focusBranch:
 		return helpStyle.Render("↑/k ↓/j move · enter checkout · n new branch · r rename · d delete · M merge · t theme · q quit") + " · " + modeStr
 	case focusLog:
-		return helpStyle.Render("↑/k ↓/j move · pgup/pgdown scroll · R reword · t theme · q quit") + " · " + modeStr
+		return helpStyle.Render("↑/k ↓/j move · pgup/pgdown scroll · R reword · T tag · t theme · q quit") + " · " + modeStr
 	case focusStash:
 		return helpStyle.Render("↑/k ↓/j move · enter apply · n new stash · p pop · b branch · d drop · D clear all · t theme · q quit") + " · " + modeStr
 	case focusDiff:

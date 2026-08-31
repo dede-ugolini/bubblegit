@@ -111,6 +111,51 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	}
 
+	if m.tagPopup.active {
+		if key, ok := msg.(tea.KeyMsg); ok {
+			switch key.String() {
+			case "ctrl+s":
+				if m.tagPopup.tagName.Value() == "" {
+					return m, nil
+				}
+				m.tagPopup.tagName.Blur()
+				m.tagPopup.tagMessage.Blur()
+				m.tagPopup.active = false
+				return m, tea.Batch(m.handleTag, m.Refresh())
+			case "tab":
+				if m.tagPopup.focus == tagFocusName {
+					m.tagPopup.tagName.Blur()
+					m.tagPopup.tagMessage.Focus()
+					m.tagPopup.focus = tagFocusMessage
+				} else {
+					m.tagPopup.tagMessage.Blur()
+					m.tagPopup.tagName.Focus()
+					m.tagPopup.focus = tagFocusName
+				}
+				return m, nil
+			case "esc":
+				m.tagPopup.tagName.Blur()
+				m.tagPopup.tagMessage.Blur()
+				m.tagPopup.active = false
+				return m, nil
+			case "enter":
+				if m.tagPopup.focus == tagFocusName {
+					m.tagPopup.tagName.Blur()
+					m.tagPopup.tagMessage.Focus()
+					m.tagPopup.focus = tagFocusMessage
+				}
+				return m, nil
+			}
+		}
+		var cmd tea.Cmd
+		if m.tagPopup.focus == tagFocusName {
+			m.tagPopup.tagName, cmd = m.tagPopup.tagName.Update(msg)
+			return m, cmd
+		}
+		m.tagPopup.tagMessage, cmd = m.tagPopup.tagMessage.Update(msg)
+		return m, cmd
+	}
+
 	if m.inputPopup.active {
 		if key, ok := msg.(tea.KeyMsg); ok {
 			switch key.String() {
@@ -514,6 +559,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.mergePopup.idx = 0
 				m.mergePopup.branch = m.branches[m.idxBranch].Name
 			}
+
+		case "T":
+			if m.focus == focusLog && len(m.log) > 0 {
+				m.tagPopup.active = true
+				m.tagPopup.hash = m.log[m.idxLog].Hash
+				m.tagPopup.focus = tagFocusName
+				m.tagPopup.tagName.SetWidth(m.width / 3)
+				m.tagPopup.tagMessage.SetWidth(m.width / 3)
+				m.tagPopup.tagName.SetValue("")
+				m.tagPopup.tagMessage.SetValue("")
+				m.tagPopup.tagName.Placeholder = "Tag name"
+				m.tagPopup.tagMessage.Placeholder = "Tag message (optional)"
+				m.tagPopup.tagName.Focus()
+				m.tagPopup.tagMessage.Blur()
+				return m, textinput.Blink
+			}
 		}
 	}
 
@@ -792,6 +853,17 @@ func (m *Model) handleCommit() tea.Msg {
 	default:
 		err = git.Commit(m.dir, full)
 	}
+	if err != nil {
+		return errMsg{err}
+	}
+	return nil
+}
+
+func (m *Model) handleTag() tea.Msg {
+	name := m.tagPopup.tagName.Value()
+	message := m.tagPopup.tagMessage.Value()
+	hash := m.tagPopup.hash
+	err := git.CreateTag(m.dir, name, message, hash)
 	if err != nil {
 		return errMsg{err}
 	}

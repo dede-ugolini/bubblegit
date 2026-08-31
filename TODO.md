@@ -81,7 +81,7 @@
 
 ## Tags
 
-* [ ] Create tag
+* [x] Create tag
 * [ ] Delete tag
 * [ ] Rename tag
 * [ ] Checkout tag
