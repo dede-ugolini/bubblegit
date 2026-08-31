@@ -12,7 +12,7 @@
 * [x] Unstage all files
 * [ ] Add file
 * [ ] Diff file
-* [ ] Diff staged file
+* [x] Diff staged file
 
 ## Branch
 
