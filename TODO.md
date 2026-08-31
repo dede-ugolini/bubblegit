@@ -49,7 +49,7 @@
 * [ ] Drop commit
 * [x] Reword commit
 * [ ] Edit commit
-* [ ] Squash commits
+* [x] Squash commits
 * [ ] Fixup commits
 * [ ] Reorder commits
 * [ ] Split commit

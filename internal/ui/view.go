@@ -416,10 +416,15 @@ func (m *Model) renderLog() string {
 	dateColor := lipgloss.NewStyle().Foreground(m.theme.Date)
 	shortHashColor := lipgloss.NewStyle().Foreground(m.theme.Hash)
 
+	lo, hi := m.squashAnchor, m.idxLog
+	if lo > hi {
+		lo, hi = hi, lo
+	}
+
 	var entrys []string
 	for i := start; i < end; i++ {
 		l := m.log[i]
-		if i == m.idxLog && m.focus == focusLog {
+		if (i == m.idxLog && m.focus == focusLog) || (m.squashMarking && i >= lo && i <= hi) {
 			// Deliberately plain text here: dateColor/shortHashColor each
 			// end in their own ANSI reset, which - nested inside this
 			// Background() - would wipe the highlight out from under the
@@ -511,7 +516,7 @@ func (m *Model) renderFooter() string {
 	case focusBranch:
 		return helpStyle.Render("↑/k ↓/j move · enter checkout · n new branch · r rename · d delete · M merge · t theme · q quit") + " · " + modeStr
 	case focusLog:
-		return helpStyle.Render("↑/k ↓/j move · pgup/pgdown scroll · R reword · T tag · t theme · q quit") + " · " + modeStr
+		return helpStyle.Render("↑/k ↓/j move · pgup/pgdown scroll · r reword · S squash · esc cancel · T tag · t theme · q quit") + " · " + modeStr
 	case focusStash:
 		return helpStyle.Render("↑/k ↓/j move · enter apply · n new stash · p pop · b branch · d drop · D clear all · t theme · q quit") + " · " + modeStr
 	case focusDiff:
