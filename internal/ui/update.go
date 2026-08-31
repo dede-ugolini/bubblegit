@@ -633,11 +633,32 @@ func (m Model) showDiff() tea.Cmd {
 				diff string
 				err  error
 			)
-			if m.useDelta {
-				diff, err = git.DiffDelta(m.dir, m.files[m.idxFiles].Path, m.panelFullScreen, m.diff.Width())
-			} else {
-				diff, err = git.Diff(m.dir, m.files[m.idxFiles].Path)
+			file := m.files[m.idxFiles]
+			// Untracked() is also true for Unstaged() (an untracked file has
+			// no staged changes, so its worktree side is by definition
+			// unstaged) and a partially-staged file satisfies both Staged()
+			// and Unstaged() - these are deliberately if/else-if, in
+			// priority order, so exactly one diff is computed per file.
+			if file.Staged() {
+				if m.useDelta {
+					diff, err = git.DiffDeltaStaged(m.dir, m.files[m.idxFiles].Path, m.panelFullScreen, m.diff.Width())
+				} else {
+					diff, err = git.DiffStaged(m.dir, m.files[m.idxFiles].Path)
+				}
+			} else if file.Untracked() {
+				if m.useDelta {
+					diff, err = git.DiffDeltaUntracked(m.dir, m.files[m.idxFiles].Path, m.panelFullScreen, m.diff.Width())
+				} else {
+					diff, err = git.DiffUntracked(m.dir, m.files[m.idxFiles].Path)
+				}
+			} else if file.Unstaged() {
+				if m.useDelta {
+					diff, err = git.DiffDelta(m.dir, m.files[m.idxFiles].Path, m.panelFullScreen, m.diff.Width())
+				} else {
+					diff, err = git.Diff(m.dir, m.files[m.idxFiles].Path)
+				}
 			}
+
 			if err != nil {
 				return errMsg{err}
 			}
