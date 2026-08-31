@@ -293,7 +293,7 @@ func (m *Model) renderBranches() string {
 	start, end := visibleWindow(len(m.branches), m.branchHeight, m.idxBranch)
 	for i := start; i < end; i++ {
 		b := m.branches[i]
-		if m.idxBranch == i {
+		if m.idxBranch == i && m.focus == focusBranch {
 			// Deliberately plain text here: coloring the current branch's
 			// name first and only then wrapping in Width(...).Background(...)
 			// would hit the same nested-reset issue as log/stash - see
