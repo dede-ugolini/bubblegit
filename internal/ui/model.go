@@ -43,6 +43,12 @@ type commitPopup struct {
 	active        bool
 	reword        bool
 	rewordHash    string
+
+	// squash fields are set when this popup was opened to confirm folding a
+	// marked range of log commits into one, mirroring reword/rewordHash.
+	squash           bool
+	squashOldestHash string
+	squashCount      int
 }
 
 type stashBranchPopup struct {
@@ -149,6 +155,13 @@ type Model struct {
 	idxLog    int
 	logHeight int
 	logWidth  int
+
+	// squashMarking is true while the user is marking a range of commits in
+	// the log panel to squash together; squashAnchor is the log index where
+	// marking started. The current range is always
+	// [min(squashAnchor, idxLog), max(squashAnchor, idxLog)].
+	squashMarking bool
+	squashAnchor  int
 
 	stashes           []git.StashEntry
 	idxStash          int
