@@ -597,3 +597,108 @@ func currentBranch(t *testing.T, dir string) string {
 func writeFile(dir, name, content string) error {
 	return os.WriteFile(filepath.Join(dir, name), []byte(content), 0644)
 }
+
+func revParse(t *testing.T, dir, rev string) string {
+	t.Helper()
+	cmd := exec.Command("git", "rev-parse", rev)
+	cmd.Dir = dir
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("git rev-parse %s failed: %v", rev, err)
+	}
+	return strings.TrimSpace(string(out))
+}
+
+func revCount(t *testing.T, dir string) string {
+	t.Helper()
+	cmd := exec.Command("git", "rev-list", "--count", "HEAD")
+	cmd.Dir = dir
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("git rev-list --count failed: %v", err)
+	}
+	return strings.TrimSpace(string(out))
+}
+
+func headMessage(t *testing.T, dir string) string {
+	t.Helper()
+	cmd := exec.Command("git", "log", "-1", "--format=%B")
+	cmd.Dir = dir
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("git log -1 --format=%%B failed: %v", err)
+	}
+	return strings.TrimSpace(string(out))
+}
+
+func TestSquashCommits(t *testing.T) {
+	t.Run("squash range of commits", func(t *testing.T) {
+		dir := initRepo(t)
+
+		if err := writeFile(dir, "hello.go", "line1\n"); err != nil {
+			t.Fatal(err)
+		}
+		run(t, dir, "git", "add", "hello.go")
+		run(t, dir, "git", "commit", "-m", "add line1")
+
+		if err := writeFile(dir, "hello.go", "line1\nline2\n"); err != nil {
+			t.Fatal(err)
+		}
+		run(t, dir, "git", "add", "hello.go")
+		run(t, dir, "git", "commit", "-m", "add line2")
+		oldest := revParse(t, dir, "HEAD")
+
+		if err := writeFile(dir, "hello.go", "line1\nline2\nline3\n"); err != nil {
+			t.Fatal(err)
+		}
+		run(t, dir, "git", "add", "hello.go")
+		run(t, dir, "git", "commit", "-m", "add line3")
+
+		if err := SquashCommits(dir, oldest, 2, "squashed: add line2+3"); err != nil {
+			t.Fatalf("SquashCommits() error: %v", err)
+		}
+
+		if got, want := revCount(t, dir), "3"; got != want {
+			t.Errorf("rev-list --count = %q, want %q", got, want)
+		}
+		if got, want := headMessage(t, dir), "squashed: add line2+3"; got != want {
+			t.Errorf("commit message = %q, want %q", got, want)
+		}
+		content, err := os.ReadFile(filepath.Join(dir, "hello.go"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got, want := string(content), "line1\nline2\nline3\n"; got != want {
+			t.Errorf("hello.go = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("squash including the root commit", func(t *testing.T) {
+		dir := initRepo(t)
+		root := revParse(t, dir, "HEAD")
+
+		if err := writeFile(dir, "a.go", "a\n"); err != nil {
+			t.Fatal(err)
+		}
+		run(t, dir, "git", "add", "a.go")
+		run(t, dir, "git", "commit", "-m", "add a")
+
+		if err := SquashCommits(dir, root, 2, "squashed root"); err != nil {
+			t.Fatalf("SquashCommits() with root error: %v", err)
+		}
+
+		if got, want := revCount(t, dir), "1"; got != want {
+			t.Errorf("rev-list --count = %q, want %q", got, want)
+		}
+		if got, want := headMessage(t, dir), "squashed root"; got != want {
+			t.Errorf("commit message = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("fewer than 2 commits fails", func(t *testing.T) {
+		dir := initRepo(t)
+		if err := SquashCommits(dir, "HEAD", 1, "msg"); err == nil {
+			t.Fatal("SquashCommits() with count=1 succeeded, want error")
+		}
+	})
+}

@@ -1,6 +1,9 @@
 package ui
 
 import (
+	"fmt"
+	"strings"
+
 	"bubblegit/internal/git"
 
 	"charm.land/bubbles/v2/textinput"
@@ -8,6 +11,34 @@ import (
 )
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if m.squashMarking {
+		if key, ok := msg.(tea.KeyMsg); ok {
+			switch key.String() {
+			case "up", "k":
+				m.moveLog(-1)
+				return m, m.showDiff()
+			case "down", "j":
+				m.moveLog(1)
+				return m, m.showDiff()
+			case "S":
+				lo, hi := m.squashAnchor, m.idxLog
+				if lo > hi {
+					lo, hi = hi, lo
+				}
+				count := hi - lo + 1
+				m.squashMarking = false
+				if count < 2 {
+					return m, func() tea.Msg { return errMsg{fmt.Errorf("select at least two commits to squash")} }
+				}
+				return m, m.startSquash(lo, hi)
+			case "esc":
+				m.squashMarking = false
+				return m, nil
+			}
+		}
+		return m, nil
+	}
+
 	if m.stashClearConfirm {
 		if key, ok := msg.(tea.KeyMsg); ok {
 			switch key.String() {
@@ -423,6 +454,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.focus == focusStag && len(m.files) > 0 && git.HasOneStaged(m.files) {
 				m.commitPopup.reword = false
 				m.commitPopup.rewordHash = ""
+				m.commitPopup.squash = false
+				m.commitPopup.squashOldestHash = ""
+				m.commitPopup.squashCount = 0
 				m.commitPopup.focus = commitFocusSummary
 				m.commitPopup.commitSummary.SetWidth(m.width / 3)
 				m.commitPopup.commitMessage.SetWidth(m.width / 3)
@@ -552,6 +586,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Toggle diff rendering mode (delta vs plain git)
 			m.useDelta = !m.useDelta
 			return m, m.showDiff()
+
+		case "S":
+			// Squash: start marking a range of commits to fold together.
+			if m.focus == focusLog && len(m.log) > 0 {
+				m.squashMarking = true
+				m.squashAnchor = m.idxLog
+			}
 
 		case "M":
 			if m.focus == focusBranch && len(m.branches) > 0 {
@@ -848,6 +889,8 @@ func (m *Model) handleCommit() tea.Msg {
 		// Rewording HEAD is a plain amend: no rebase, and it doesn't care
 		// about the working tree being dirty the way rebase would.
 		err = git.Ammend(m.dir, full)
+	case m.commitPopup.squash:
+		err = git.SquashCommits(m.dir, m.commitPopup.squashOldestHash, m.commitPopup.squashCount, full)
 	case m.commitPopup.reword:
 		err = git.RewordCommit(m.dir, m.commitPopup.rewordHash, full)
 	default:
@@ -886,11 +929,44 @@ func (m *Model) handleRewordCommit() tea.Cmd {
 	entry := m.log[m.idxLog]
 	m.commitPopup.reword = true
 	m.commitPopup.rewordHash = entry.Hash
+	m.commitPopup.squash = false
+	m.commitPopup.squashOldestHash = ""
+	m.commitPopup.squashCount = 0
 	m.commitPopup.focus = commitFocusSummary
 	m.commitPopup.commitSummary.SetWidth(m.width / 3)
 	m.commitPopup.commitMessage.SetWidth(m.width / 3)
 	m.commitPopup.commitSummary.SetValue(entry.Subject)
 	m.commitPopup.commitMessage.SetValue(entry.Body)
+	m.commitPopup.commitSummary.Placeholder = "Commit summary"
+	m.commitPopup.commitMessage.Placeholder = "Commit message"
+	m.commitPopup.commitSummary.Focus()
+	m.commitPopup.commitMessage.Blur()
+	m.commitPopup.active = true
+	return textinput.Blink
+}
+
+// startSquash opens commitPopup to confirm squashing the marked log range
+// [lo, hi] (indices into m.log, which is newest-first) into one commit,
+// pre-filled with the newest subject as the summary and every subject in
+// the range, oldest first, as a bulleted message body - mirroring
+// handleRewordCommit's single-entry prefill.
+func (m *Model) startSquash(lo, hi int) tea.Cmd {
+	m.commitPopup.reword = false
+	m.commitPopup.rewordHash = ""
+	m.commitPopup.squash = true
+	m.commitPopup.squashOldestHash = m.log[hi].Hash
+	m.commitPopup.squashCount = hi - lo + 1
+
+	subjects := make([]string, 0, hi-lo+1)
+	for i := hi; i >= lo; i-- {
+		subjects = append(subjects, "- "+m.log[i].Subject)
+	}
+
+	m.commitPopup.focus = commitFocusSummary
+	m.commitPopup.commitSummary.SetWidth(m.width / 3)
+	m.commitPopup.commitMessage.SetWidth(m.width / 3)
+	m.commitPopup.commitSummary.SetValue(m.log[lo].Subject)
+	m.commitPopup.commitMessage.SetValue(strings.Join(subjects, "\n"))
 	m.commitPopup.commitSummary.Placeholder = "Commit summary"
 	m.commitPopup.commitMessage.Placeholder = "Commit message"
 	m.commitPopup.commitSummary.Focus()
