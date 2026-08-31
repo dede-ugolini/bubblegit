@@ -655,3 +655,39 @@ func StashShowDelta(dir, ref string, sideBySide bool, width int) (string, error)
 	}
 	return output.String(), nil
 }
+
+func MergeFF(dir, branch string) error {
+	return Merge(dir, branch, "ff")
+}
+
+// Merge merges branch into the current branch. mode is one of "ff"
+// (fast-forward only), "merge" (create a merge commit even when a
+// fast-forward is possible), or "squash" (squash all changes into a
+// single commit).
+func Merge(dir, branch, mode string) error {
+	var cmd *exec.Cmd
+	switch mode {
+	case "ff":
+		cmd = exec.Command("git", "merge", "--ff-only", branch)
+	case "merge":
+		cmd = exec.Command("git", "merge", "--no-ff", "--no-edit", branch)
+	case "squash":
+		cmd = exec.Command("git", "merge", "--squash", branch)
+	default:
+		return fmt.Errorf("unknown merge mode %q", mode)
+	}
+	cmd.Dir = dir
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("%s", strings.TrimSpace(string(out)))
+	}
+	if mode == "squash" {
+		commit := exec.Command("git", "commit", "-m", "Squash merge branch '"+branch+"'")
+		commit.Dir = dir
+		out, err = commit.CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("%s", strings.TrimSpace(string(out)))
+		}
+	}
+	return nil
+}

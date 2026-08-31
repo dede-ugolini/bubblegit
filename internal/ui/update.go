@@ -22,6 +22,28 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	if m.mergePopup.active {
+		if key, ok := msg.(tea.KeyMsg); ok {
+			switch key.String() {
+			case "up", "k":
+				m.mergePopup.idx = (m.mergePopup.idx - 1 + len(mergeModes)) % len(mergeModes)
+				return m, nil
+			case "down", "j":
+				m.mergePopup.idx = (m.mergePopup.idx + 1) % len(mergeModes)
+				return m, nil
+			case "enter":
+				mode := mergeModes[m.mergePopup.idx]
+				branch := m.mergePopup.branch
+				m.mergePopup.active = false
+				return m, tea.Batch(func() tea.Msg { return m.handleMerge(branch, mode) }, m.Refresh())
+			case "esc":
+				m.mergePopup.active = false
+				return m, nil
+			}
+		}
+		return m, nil
+	}
+
 	if m.stashBranchPopup.active {
 		if key, ok := msg.(tea.KeyMsg); ok {
 			switch key.String() {
@@ -485,6 +507,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Toggle diff rendering mode (delta vs plain git)
 			m.useDelta = !m.useDelta
 			return m, m.showDiff()
+
+		case "M":
+			if m.focus == focusBranch && len(m.branches) > 0 {
+				m.mergePopup.active = true
+				m.mergePopup.idx = 0
+				m.mergePopup.branch = m.branches[m.idxBranch].Name
+			}
 		}
 	}
 
@@ -767,6 +796,18 @@ func (m *Model) handleCommit() tea.Msg {
 		return errMsg{err}
 	}
 	return nil
+}
+
+func (m *Model) handleMerge(branch string, mode mergeMode) tea.Msg {
+	err := git.Merge(m.dir, branch, mode.gitArg())
+	if err != nil {
+		return errMsg{err}
+	}
+	branches, err := git.Branches(m.dir)
+	if err != nil {
+		return errMsg{err}
+	}
+	return branchesMsg(branches)
 }
 
 func (m *Model) handleRewordCommit() tea.Cmd {

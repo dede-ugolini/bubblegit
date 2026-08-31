@@ -247,6 +247,121 @@ func TestRestore(t *testing.T) {
 	})
 }
 
+func TestMerge(t *testing.T) {
+	t.Run("ff", func(t *testing.T) {
+		dir := initRepo(t)
+		main := defaultBranch(t, dir)
+		if err := writeFile(dir, "hello.go", "package main\n"); err != nil {
+			t.Fatal(err)
+		}
+		run(t, dir, "git", "add", "hello.go")
+		run(t, dir, "git", "commit", "-m", "add hello")
+
+		run(t, dir, "git", "checkout", "-b", "feat")
+		if err := writeFile(dir, "hello.go", "package main\n// feat\n"); err != nil {
+			t.Fatal(err)
+		}
+		run(t, dir, "git", "add", "hello.go")
+		run(t, dir, "git", "commit", "-m", "feat: change")
+
+		run(t, dir, "git", "checkout", main)
+		if err := Merge(dir, "feat", "ff"); err != nil {
+			t.Fatalf("Merge(ff) error: %v", err)
+		}
+		content, err := os.ReadFile(filepath.Join(dir, "hello.go"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := string(content); got != "package main\n// feat\n" {
+			t.Errorf("hello.go = %q, want feat content", got)
+		}
+		if got := currentBranch(t, dir); got != main {
+			t.Errorf("branch = %q, want %q", got, main)
+		}
+	})
+
+	t.Run("merge commit", func(t *testing.T) {
+		dir := initRepo(t)
+		main := defaultBranch(t, dir)
+		if err := writeFile(dir, "hello.go", "package main\n"); err != nil {
+			t.Fatal(err)
+		}
+		run(t, dir, "git", "add", "hello.go")
+		run(t, dir, "git", "commit", "-m", "add hello")
+
+		run(t, dir, "git", "checkout", "-b", "feat")
+		if err := writeFile(dir, "hello.go", "package main\n// feat\n"); err != nil {
+			t.Fatal(err)
+		}
+		run(t, dir, "git", "add", "hello.go")
+		run(t, dir, "git", "commit", "-m", "feat: change")
+
+		run(t, dir, "git", "checkout", main)
+		if err := writeFile(dir, "main.go", "package main\n"); err != nil {
+			t.Fatal(err)
+		}
+		run(t, dir, "git", "add", "main.go")
+		run(t, dir, "git", "commit", "-m", "main: change")
+
+		if err := Merge(dir, "feat", "merge"); err != nil {
+			t.Fatalf("Merge(merge) error: %v", err)
+		}
+		cmd := exec.Command("git", "rev-list", "--parents", "-n", "1", "HEAD")
+		cmd.Dir = dir
+		out, err := cmd.Output()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if parents := len(strings.Fields(string(out))); parents != 3 {
+			t.Errorf("merge commit has %d tokens (want 3: HEAD + 2 parents)", parents)
+		}
+	})
+
+	t.Run("squash", func(t *testing.T) {
+		dir := initRepo(t)
+		main := defaultBranch(t, dir)
+		if err := writeFile(dir, "hello.go", "package main\n"); err != nil {
+			t.Fatal(err)
+		}
+		run(t, dir, "git", "add", "hello.go")
+		run(t, dir, "git", "commit", "-m", "add hello")
+
+		run(t, dir, "git", "checkout", "-b", "feat")
+		if err := writeFile(dir, "hello.go", "package main\n// feat\n"); err != nil {
+			t.Fatal(err)
+		}
+		run(t, dir, "git", "add", "hello.go")
+		run(t, dir, "git", "commit", "-m", "feat: change")
+
+		run(t, dir, "git", "checkout", main)
+		if err := writeFile(dir, "main.go", "package main\n"); err != nil {
+			t.Fatal(err)
+		}
+		run(t, dir, "git", "add", "main.go")
+		run(t, dir, "git", "commit", "-m", "main: change")
+
+		if err := Merge(dir, "feat", "squash"); err != nil {
+			t.Fatalf("Merge(squash) error: %v", err)
+		}
+		cmd := exec.Command("git", "rev-list", "--parents", "-n", "1", "HEAD")
+		cmd.Dir = dir
+		out, err := cmd.Output()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if parents := len(strings.Fields(string(out))); parents != 2 {
+			t.Errorf("squash commit has %d tokens (want 2: HEAD + 1 parent)", parents)
+		}
+		content, err := os.ReadFile(filepath.Join(dir, "hello.go"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := string(content); got != "package main\n// feat\n" {
+			t.Errorf("hello.go = %q, want feat content", got)
+		}
+	})
+}
+
 func TestCheckout(t *testing.T) {
 	dir := initRepo(t)
 	branch := defaultBranch(t, dir)

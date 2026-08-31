@@ -64,6 +64,25 @@ func (m Model) View() tea.View {
 		return v
 	}
 
+	if m.mergePopup.active {
+		popupWidth := m.width / 3
+		popupHeight := m.height / 5
+
+		popup := lipgloss.NewLayer(m.renderMergePopup()).
+			X((m.width - popupWidth) / 2).
+			Y((m.height - popupHeight) / 2).
+			Z(1)
+
+		base := lipgloss.NewLayer(m.renderNormalView()).
+			Z(0)
+
+		c := lipgloss.NewCompositor(base, popup)
+		v := tea.NewView(c.Render())
+		v.AltScreen = true
+		v.MouseMode = tea.MouseModeCellMotion
+		return v
+	}
+
 	if m.stashBranchPopup.active {
 		popupWidth := m.width / 3
 		popupHeight := m.height / 8
@@ -147,6 +166,29 @@ func (m *Model) renderStashBranchPopup() string {
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(m.theme.FocusBorder).
 		Render("Branch from stash\n\n" + m.stashBranchPopup.input.View() + "\n" + help)
+}
+
+func (m *Model) renderMergePopup() string {
+	help := lipgloss.NewStyle().Foreground(m.theme.Muted).
+		Render("↑/k ↓/j select · enter confirm · esc cancel")
+
+	var lines []string
+	lines = append(lines, "Merge '"+m.mergePopup.branch+"' into current branch:")
+	for i, mode := range mergeModes {
+		prefix := "  "
+		style := lipgloss.NewStyle().Width(m.width / 3)
+		if m.mergePopup.idx == i {
+			prefix = "› "
+			style = style.Background(m.theme.Accent)
+		}
+		lines = append(lines, style.Render(prefix+mode.String()))
+	}
+
+	return lipgloss.NewStyle().
+		Width(m.width / 3).
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(m.theme.FocusBorder).
+		Render(strings.Join(lines, "\n") + "\n\n" + help)
 }
 
 func (m *Model) renderInputPopup() string {
@@ -430,7 +472,7 @@ func (m *Model) renderFooter() string {
 	case focusStag:
 		return helpStyle.Render("↑/k ↓/j move · <space> stag · a stag/unstag all · d restore · t theme · q quit") + " · " + modeStr
 	case focusBranch:
-		return helpStyle.Render("↑/k ↓/j move · enter checkout · n new branch · r rename · d delete · t theme · q quit") + " · " + modeStr
+		return helpStyle.Render("↑/k ↓/j move · enter checkout · n new branch · r rename · d delete · M merge · t theme · q quit") + " · " + modeStr
 	case focusLog:
 		return helpStyle.Render("↑/k ↓/j move · pgup/pgdown scroll · R reword · t theme · q quit") + " · " + modeStr
 	case focusStash:

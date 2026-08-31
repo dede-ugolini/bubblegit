@@ -50,6 +50,52 @@ type stashBranchPopup struct {
 	active bool
 }
 
+// mergeMode identifies which merge strategy to apply.
+type mergeMode int
+
+const (
+	mergeModeFF mergeMode = iota
+	mergeModeMerge
+	mergeModeSquash
+)
+
+func (m mergeMode) String() string {
+	switch m {
+	case mergeModeFF:
+		return "fast-forward"
+	case mergeModeMerge:
+		return "merge commit"
+	case mergeModeSquash:
+		return "squash commit"
+	default:
+		return "unknown"
+	}
+}
+
+// gitArg returns the mode string passed to git.Merge.
+func (m mergeMode) gitArg() string {
+	switch m {
+	case mergeModeFF:
+		return "ff"
+	case mergeModeMerge:
+		return "merge"
+	case mergeModeSquash:
+		return "squash"
+	default:
+		return "ff"
+	}
+}
+
+var mergeModes = []mergeMode{mergeModeFF, mergeModeMerge, mergeModeSquash}
+
+type mergePopup struct {
+	active bool
+	idx    int
+
+	// branch is the branch being merged into the current branch.
+	branch string
+}
+
 // inputAction identifies which git action inputPopup should dispatch on
 // submit - one popup, several purposes, same as commitPopup.reword.
 type inputAction int
@@ -100,6 +146,8 @@ type Model struct {
 	stashBranchPopup stashBranchPopup
 
 	inputPopup inputPopup
+
+	mergePopup mergePopup
 
 	focus int
 	diff  viewport.Model

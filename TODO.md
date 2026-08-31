@@ -20,7 +20,7 @@
 * [x] Delete branch
 * [x] Rename branch
 * [x] Checkout branch
-* [ ] Merge branch
+* [x] Merge branch
 * [ ] Rebase branch
 * [ ] Abort merge
 * [ ] Abort rebase
