@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -610,15 +611,15 @@ func (m *Model) renderFooter() string {
 	modeStr := helpStyle.Render("diff: " + mode + " · V toggle")
 	switch m.focus {
 	case focusStag:
-		return helpStyle.Render("↑/k ↓/j move · <space> stag · a stag/unstag all · d restore · t theme · q quit") + " · " + modeStr
+		return helpStyle.Render(fmt.Sprintf("↑/k ↓/j move · <space> stag · a stag/unstag all · d restore · t theme: %s · q quit", m.themeName)) + " · " + modeStr
 	case focusBranch:
-		return helpStyle.Render("↑/k ↓/j move · enter checkout · n new branch · r rename · d delete · M merge · P push · R set remote · t theme · q quit") + " · " + modeStr
+		return helpStyle.Render(fmt.Sprintf("↑/k ↓/j move · enter checkout · n new branch · r rename · d delete · M merge · P push · R set remote · t theme: %s · q quit", m.themeName)) + " · " + modeStr
 	case focusLog:
-		return helpStyle.Render("↑/k ↓/j move · pgup/pgdown scroll · r reword · S squash · esc cancel · d drop last · T tag · t theme · q quit") + " · " + modeStr
+		return helpStyle.Render(fmt.Sprintf("↑/k ↓/j move · pgup/pgdown scroll · r reword · S squash · esc cancel · d drop last · T tag · t theme: %s · q quit", m.themeName)) + " · " + modeStr
 	case focusStash:
-		return helpStyle.Render("↑/k ↓/j move · enter apply · n new stash · p pop · b branch · d drop · D clear all · t theme · q quit") + " · " + modeStr
+		return helpStyle.Render(fmt.Sprintf("↑/k ↓/j move · enter apply · n new stash · p pop · b branch · d drop · D clear all · t theme: %s · q quit", m.themeName)) + " · " + modeStr
 	case focusDiff:
-		return helpStyle.Render("↑/k ↓/j move · pgup/pgdown scroll · t theme · q quit") + " · " + modeStr
+		return helpStyle.Render(fmt.Sprintf("↑/k ↓/j move · pgup/pgdown scroll · t theme: %s · q quit", m.themeName)) + " · " + modeStr
 	default:
 		return helpStyle.Render("t theme · q quit") + " · " + modeStr
 	}
