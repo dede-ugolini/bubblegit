@@ -620,6 +620,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.mergePopup.branch = m.branches[m.idxBranch].Name
 			}
 
+		case "P":
+			if m.focus == focusBranch && len(m.branches) > 0 {
+				branch := m.branches[m.idxBranch].Name
+				return m, tea.Batch(func() tea.Msg { return m.handlePush(branch) }, m.Refresh())
+			}
+
 		case "T":
 			if m.focus == focusLog && len(m.log) > 0 {
 				m.tagPopup.active = true
@@ -966,6 +972,18 @@ func (m *Model) handleTag() tea.Msg {
 
 func (m *Model) handleMerge(branch string, mode mergeMode) tea.Msg {
 	err := git.Merge(m.dir, branch, mode.gitArg())
+	if err != nil {
+		return errMsg{err}
+	}
+	branches, err := git.Branches(m.dir)
+	if err != nil {
+		return errMsg{err}
+	}
+	return branchesMsg(branches)
+}
+
+func (m *Model) handlePush(branch string) tea.Msg {
+	err := git.Push(m.dir, branch)
 	if err != nil {
 		return errMsg{err}
 	}
