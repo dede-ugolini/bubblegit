@@ -339,6 +339,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.moveLog(-1)
 			case focusStash:
 				m.moveStash(-1)
+			case focusDiff:
+				var cmd tea.Cmd
+				m.diff, cmd = m.diff.Update(msg)
+				return m, cmd
 			}
 			return m, m.showDiff()
 
