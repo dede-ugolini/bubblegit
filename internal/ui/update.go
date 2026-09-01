@@ -277,10 +277,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.diff.SetContent(msg.diff)
 		return m, nil
 
+	case tea.MouseClickMsg:
+		m.mouseClick(msg.Mouse())
+		return m, m.showDiff()
+
 	case tea.MouseWheelMsg:
-		var cmd tea.Cmd
-		m.diff, cmd = m.diff.Update(msg)
-		return m, cmd
+		return m, m.mouseWheel(msg.Mouse())
 
 	case tea.WindowSizeMsg:
 		m.height = msg.Height
@@ -1070,6 +1072,72 @@ func (m *Model) startSquash(lo, hi int) tea.Cmd {
 	m.commitPopup.commitMessage.Blur()
 	m.commitPopup.active = true
 	return textinput.Blink
+}
+
+// mouseClick focuses whichever panel a click landed in (via panelAt) and,
+// for the four list panels, selects the row under the cursor - the mouse
+// equivalent of pressing a focus-switch key followed by moving the cursor
+// to that row.
+func (m *Model) mouseClick(ms tea.Mouse) {
+	target, row, ok := m.panelAt(ms.X, ms.Y)
+	if !ok {
+		return
+	}
+	m.focus = target
+	if row < 0 {
+		return
+	}
+	switch target {
+	case focusStag:
+		m.idxFiles = row
+	case focusBranch:
+		m.idxBranch = row
+	case focusLog:
+		m.idxLog = row
+	case focusStash:
+		m.idxStash = row
+	}
+}
+
+// mouseWheel scrolls the diff viewport when the wheel is over the diff
+// panel, or moves the selection cursor by one (like k/j) when it's over one
+// of the four list panels - and focuses whichever panel that is, same as
+// mouseClick, so the diff pane updates to match what the wheel just moved.
+func (m *Model) mouseWheel(ms tea.Mouse) tea.Cmd {
+	var delta int
+	switch ms.Button {
+	case tea.MouseWheelUp:
+		delta = -1
+	case tea.MouseWheelDown:
+		delta = 1
+	default:
+		return nil
+	}
+
+	target, _, ok := m.panelAt(ms.X, ms.Y)
+	if !ok {
+		return nil
+	}
+	m.focus = target
+
+	switch target {
+	case focusStag:
+		m.moveFile(delta)
+	case focusBranch:
+		m.moveBranch(delta)
+	case focusLog:
+		m.moveLog(delta)
+	case focusStash:
+		m.moveStash(delta)
+	case focusDiff:
+		if delta < 0 {
+			m.diff.ScrollUp(3)
+		} else {
+			m.diff.ScrollDown(3)
+		}
+		return nil
+	}
+	return m.showDiff()
 }
 
 func (m *Model) moveFile(delta int) {
