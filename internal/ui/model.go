@@ -181,6 +181,12 @@ type Model struct {
 	deleteBranchConfirm bool
 	deleteBranchName    string
 
+	// restoreFileConfirm is true while the user is confirming restoring a
+	// file (m.files[m.idxFiles] when "d" was pressed); restoreFilePath is
+	// its path, captured at that point for display.
+	restoreFileConfirm bool
+	restoreFilePath    string
+
 	tagPopup    tagPopup
 	commitPopup commitPopup
 
