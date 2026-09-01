@@ -286,6 +286,7 @@ func (m *Model) renderDiff() string {
 		return lipgloss.NewStyle().
 			Border(lipgloss.NormalBorder(), true).
 			BorderForeground(m.theme.FocusBorder).
+			Bold(true).
 			Height(m.diff.Height()).
 			Width(m.diff.Width()).
 			Render(m.diff.View())
@@ -353,6 +354,7 @@ func (m *Model) renderFiles() string {
 		return lipgloss.NewStyle().
 			Border(lipgloss.NormalBorder(), true).
 			BorderForeground(m.theme.FocusBorder).
+			Bold(true).
 			Height(m.filesHeight).
 			Render(strings.Join(s, "\n"))
 	}
@@ -397,6 +399,7 @@ func (m *Model) renderBranches() string {
 		return lipgloss.NewStyle().
 			Border(lipgloss.NormalBorder(), true).
 			BorderForeground(m.theme.FocusBorder).
+			Bold(true).
 			Height(m.branchHeight).
 			Render(strings.Join(names, "\n"))
 	}
@@ -446,6 +449,7 @@ func (m *Model) renderLog() string {
 		return lipgloss.NewStyle().
 			Border(lipgloss.NormalBorder(), true).
 			BorderForeground(m.theme.FocusBorder).
+			Bold(true).
 			Height(m.logHeight).
 			Render(strings.Join(entrys, "\n"))
 	}
@@ -494,6 +498,7 @@ func (m *Model) renderStash() string {
 		return lipgloss.NewStyle().
 			Border(lipgloss.NormalBorder(), true).
 			BorderForeground(m.theme.FocusBorder).
+			Bold(true).
 			Height(m.stashHeight).
 			Render(strings.Join(entrys, "\n"))
 	}
