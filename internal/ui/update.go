@@ -224,6 +224,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						return m, nil
 					}
 					return m, m.handleCreateBranch
+				case inputActionSetRemote:
+					if value == "" {
+						return m, nil
+					}
+					return m, m.handleSetRemote
 				}
 				return m, nil
 			case "esc":
@@ -626,6 +631,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, tea.Batch(func() tea.Msg { return m.handlePush(branch) }, m.Refresh())
 			}
 
+		case "R":
+			// Set the "origin" remote (adds it if the repo has none, or
+			// repoints it if it does).
+			if m.focus == focusBranch {
+				m.inputPopup.action = inputActionSetRemote
+				m.inputPopup.title = "Set remote"
+				m.inputPopup.input.SetWidth(m.width / 3)
+				m.inputPopup.input.CharLimit = 200
+				m.inputPopup.input.SetValue("")
+				m.inputPopup.input.Prompt = "remote> "
+				m.inputPopup.input.Placeholder = "origin URL"
+				m.inputPopup.input.Focus()
+				m.inputPopup.active = true
+				return m, textinput.Blink
+			}
+
 		case "T":
 			if m.focus == focusLog && len(m.log) > 0 {
 				m.tagPopup.active = true
@@ -871,6 +892,13 @@ func (m *Model) handleRenameBranch(oldName string) tea.Msg {
 		return errMsg{err}
 	}
 	return branchesMsg(branches)
+}
+
+func (m *Model) handleSetRemote() tea.Msg {
+	if err := git.SetRemote(m.dir, m.inputPopup.input.Value()); err != nil {
+		return errMsg{err}
+	}
+	return nil
 }
 
 func (m *Model) handleCreateBranch() tea.Msg {
