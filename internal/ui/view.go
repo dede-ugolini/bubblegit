@@ -64,6 +64,25 @@ func (m Model) View() tea.View {
 		return v
 	}
 
+	if m.tagPopup.active {
+		popupWidth := m.width / 4
+		popupHeight := m.height / 4
+
+		popup := lipgloss.NewLayer(m.renderTagPopup()).
+			X((m.width - popupWidth) / 2).
+			Y((m.height - popupHeight) / 2).
+			Z(1)
+
+		base := lipgloss.NewLayer(m.renderNormalView()).
+			Z(0)
+
+		c := lipgloss.NewCompositor(base, popup)
+		v := tea.NewView(c.Render())
+		v.AltScreen = true
+		v.MouseMode = tea.MouseModeCellMotion
+		return v
+	}
+
 	if m.mergePopup.active {
 		popupWidth := m.width / 3
 		popupHeight := m.height / 5
@@ -121,6 +140,25 @@ func (m Model) View() tea.View {
 		return v
 	}
 
+	if m.dropConfirm {
+		popupWidth := m.width / 3
+		popupHeight := m.height / 8
+
+		popup := lipgloss.NewLayer(m.renderDropConfirmPopup()).
+			X((m.width - popupWidth) / 2).
+			Y((m.height - popupHeight) / 2).
+			Z(1)
+
+		base := lipgloss.NewLayer(m.renderNormalView()).
+			Z(0)
+
+		c := lipgloss.NewCompositor(base, popup)
+		v := tea.NewView(c.Render())
+		v.AltScreen = true
+		v.MouseMode = tea.MouseModeCellMotion
+		return v
+	}
+
 	if m.inputPopup.active {
 		popupWidth := m.width / 3
 		popupHeight := m.height / 8
@@ -155,6 +193,17 @@ func (m *Model) renderStashClearConfirmPopup() string {
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(m.theme.FocusBorder).
 		Render("Remove all stash entries?\n\n" + help)
+}
+
+func (m *Model) renderDropConfirmPopup() string {
+	help := lipgloss.NewStyle().Foreground(m.theme.Muted).
+		Render("y/enter confirm · n/esc cancel")
+
+	return lipgloss.NewStyle().
+		Width(m.width / 3).
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(m.theme.FocusBorder).
+		Render("Drop last commit?\n\n" + m.dropSubject + "\n\n" + help)
 }
 
 func (m *Model) renderStashBranchPopup() string {
@@ -220,6 +269,24 @@ func (m *Model) renderPopup() string {
 	return summary + "\n" + message
 }
 
+func (m *Model) renderTagPopup() string {
+	var name, message string
+	width := m.width / 3
+
+	name = lipgloss.NewStyle().
+		Width(width).
+		Border(lipgloss.RoundedBorder()).
+		Render(m.tagPopup.tagName.View())
+
+	message = lipgloss.NewStyle().
+		Width(width).
+		Height(m.height / 4).
+		Border(lipgloss.RoundedBorder()).
+		Render(m.tagPopup.tagMessage.View())
+
+	return name + "\n" + message
+}
+
 func (m *Model) renderNormalView() string {
 	var b strings.Builder
 
@@ -249,6 +316,7 @@ func (m *Model) renderDiff() string {
 		return lipgloss.NewStyle().
 			Border(lipgloss.NormalBorder(), true).
 			BorderForeground(m.theme.FocusBorder).
+			Bold(true).
 			Height(m.diff.Height()).
 			Width(m.diff.Width()).
 			Render(m.diff.View())
@@ -316,6 +384,7 @@ func (m *Model) renderFiles() string {
 		return lipgloss.NewStyle().
 			Border(lipgloss.NormalBorder(), true).
 			BorderForeground(m.theme.FocusBorder).
+			Bold(true).
 			Height(m.filesHeight).
 			Render(strings.Join(s, "\n"))
 	}
@@ -360,6 +429,7 @@ func (m *Model) renderBranches() string {
 		return lipgloss.NewStyle().
 			Border(lipgloss.NormalBorder(), true).
 			BorderForeground(m.theme.FocusBorder).
+			Bold(true).
 			Height(m.branchHeight).
 			Render(strings.Join(names, "\n"))
 	}
@@ -379,10 +449,15 @@ func (m *Model) renderLog() string {
 	dateColor := lipgloss.NewStyle().Foreground(m.theme.Date)
 	shortHashColor := lipgloss.NewStyle().Foreground(m.theme.Hash)
 
+	lo, hi := m.squashAnchor, m.idxLog
+	if lo > hi {
+		lo, hi = hi, lo
+	}
+
 	var entrys []string
 	for i := start; i < end; i++ {
 		l := m.log[i]
-		if i == m.idxLog && m.focus == focusLog {
+		if (i == m.idxLog && m.focus == focusLog) || (m.squashMarking && i >= lo && i <= hi) {
 			// Deliberately plain text here: dateColor/shortHashColor each
 			// end in their own ANSI reset, which - nested inside this
 			// Background() - would wipe the highlight out from under the
@@ -404,6 +479,7 @@ func (m *Model) renderLog() string {
 		return lipgloss.NewStyle().
 			Border(lipgloss.NormalBorder(), true).
 			BorderForeground(m.theme.FocusBorder).
+			Bold(true).
 			Height(m.logHeight).
 			Render(strings.Join(entrys, "\n"))
 	}
@@ -452,6 +528,7 @@ func (m *Model) renderStash() string {
 		return lipgloss.NewStyle().
 			Border(lipgloss.NormalBorder(), true).
 			BorderForeground(m.theme.FocusBorder).
+			Bold(true).
 			Height(m.stashHeight).
 			Render(strings.Join(entrys, "\n"))
 	}
@@ -474,7 +551,7 @@ func (m *Model) renderFooter() string {
 	case focusBranch:
 		return helpStyle.Render("↑/k ↓/j move · enter checkout · n new branch · r rename · d delete · M merge · t theme · q quit") + " · " + modeStr
 	case focusLog:
-		return helpStyle.Render("↑/k ↓/j move · pgup/pgdown scroll · R reword · t theme · q quit") + " · " + modeStr
+		return helpStyle.Render("↑/k ↓/j move · pgup/pgdown scroll · r reword · S squash · esc cancel · d drop last · T tag · t theme · q quit") + " · " + modeStr
 	case focusStash:
 		return helpStyle.Render("↑/k ↓/j move · enter apply · n new stash · p pop · b branch · d drop · D clear all · t theme · q quit") + " · " + modeStr
 	case focusDiff:
