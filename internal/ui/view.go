@@ -140,6 +140,25 @@ func (m Model) View() tea.View {
 		return v
 	}
 
+	if m.dropConfirm {
+		popupWidth := m.width / 3
+		popupHeight := m.height / 8
+
+		popup := lipgloss.NewLayer(m.renderDropConfirmPopup()).
+			X((m.width - popupWidth) / 2).
+			Y((m.height - popupHeight) / 2).
+			Z(1)
+
+		base := lipgloss.NewLayer(m.renderNormalView()).
+			Z(0)
+
+		c := lipgloss.NewCompositor(base, popup)
+		v := tea.NewView(c.Render())
+		v.AltScreen = true
+		v.MouseMode = tea.MouseModeCellMotion
+		return v
+	}
+
 	if m.inputPopup.active {
 		popupWidth := m.width / 3
 		popupHeight := m.height / 8
@@ -174,6 +193,17 @@ func (m *Model) renderStashClearConfirmPopup() string {
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(m.theme.FocusBorder).
 		Render("Remove all stash entries?\n\n" + help)
+}
+
+func (m *Model) renderDropConfirmPopup() string {
+	help := lipgloss.NewStyle().Foreground(m.theme.Muted).
+		Render("y/enter confirm · n/esc cancel")
+
+	return lipgloss.NewStyle().
+		Width(m.width / 3).
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(m.theme.FocusBorder).
+		Render("Drop last commit?\n\n" + m.dropSubject + "\n\n" + help)
 }
 
 func (m *Model) renderStashBranchPopup() string {
@@ -521,7 +551,7 @@ func (m *Model) renderFooter() string {
 	case focusBranch:
 		return helpStyle.Render("↑/k ↓/j move · enter checkout · n new branch · r rename · d delete · M merge · t theme · q quit") + " · " + modeStr
 	case focusLog:
-		return helpStyle.Render("↑/k ↓/j move · pgup/pgdown scroll · r reword · S squash · esc cancel · T tag · t theme · q quit") + " · " + modeStr
+		return helpStyle.Render("↑/k ↓/j move · pgup/pgdown scroll · r reword · S squash · esc cancel · d drop last · T tag · t theme · q quit") + " · " + modeStr
 	case focusStash:
 		return helpStyle.Render("↑/k ↓/j move · enter apply · n new stash · p pop · b branch · d drop · D clear all · t theme · q quit") + " · " + modeStr
 	case focusDiff:

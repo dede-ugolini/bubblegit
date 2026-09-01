@@ -528,6 +528,23 @@ func Ammend(dir, message string) error {
 	return nil
 }
 
+// DropLastCommit removes the most recent commit (HEAD) from the current
+// branch, discarding its changes. It refuses to drop the only (root) commit.
+func DropLastCommit(dir string) error {
+	verify := exec.Command("git", "rev-parse", "--verify", "-q", "HEAD^")
+	verify.Dir = dir
+	if err := verify.Run(); err != nil {
+		return fmt.Errorf("cannot drop the only commit")
+	}
+	cmd := exec.Command("git", "reset", "--hard", "HEAD^")
+	cmd.Dir = dir
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("%s", strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
 // RewordCommit replaces the message of an arbitrary (not necessarily HEAD)
 // commit in the current branch's history, via a scripted, non-interactive
 // `git rebase -i`. Every commit after hash is replayed on top with its

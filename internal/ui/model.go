@@ -169,6 +169,11 @@ type Model struct {
 	stashWidth        int
 	stashClearConfirm bool
 
+	// dropConfirm is true while the user is confirming dropping the most
+	// recent commit (m.log[0]); dropSubject is its subject for display.
+	dropConfirm  bool
+	dropSubject  string
+
 	tagPopup    tagPopup
 	commitPopup commitPopup
 
