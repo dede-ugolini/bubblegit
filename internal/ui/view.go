@@ -35,6 +35,69 @@ func visibleWindow(n, height, idx int) (start, end int) {
 	return start, end
 }
 
+// panelAt maps a screen cell (x, y), as reported by a mouse event, to which
+// panel it falls in and - for the four list panels - which item row,
+// following the same visibleWindow scroll math the renderers use to lay
+// out those rows. row is -1 when the cell is on the panel's border or
+// below its last item (still a hit on the panel, just not on a row). ok is
+// false when the cell isn't inside any panel at all (footer, gaps).
+//
+// This mirrors renderNormalView's layout by construction: the four list
+// panels stack top-to-bottom in a left column of shared width, with the
+// diff panel to their right starting where that column ends - so a panel
+// resize (including the panelFullScreen zeroing-out of the rest) is picked
+// up for free from the same Height/Width fields the renderers already use.
+func (m Model) panelAt(x, y int) (target, row int, ok bool) {
+	type listPanel struct {
+		focus         int
+		height, width int
+		idx, count    int
+	}
+	panels := []listPanel{
+		{focusStag, m.filesHeight, m.filesWidth, m.idxFiles, len(m.files)},
+		{focusBranch, m.branchHeight, m.branchWidth, m.idxBranch, len(m.branches)},
+		{focusLog, m.logHeight, m.logWidth, m.idxLog, len(m.log)},
+		{focusStash, m.stashHeight, m.stashWidth, m.idxStash, len(m.stashes)},
+	}
+
+	top := 0
+	maxWidth := 0
+	for _, p := range panels {
+		if p.width > maxWidth {
+			maxWidth = p.width
+		}
+		if p.height <= 0 || p.width <= 0 {
+			continue
+		}
+		if x < 0 || x >= p.width+2 || y < top || y >= top+p.height {
+			top += p.height
+			continue
+		}
+		if y == top || y == top+p.height-1 {
+			// Border row: still a hit on the panel, no row under it.
+			return p.focus, -1, true
+		}
+		start, _ := visibleWindow(p.count, p.height, p.idx)
+		row = start + (y - top - 1)
+		if row >= p.count {
+			row = -1
+		}
+		return p.focus, row, true
+	}
+
+	diffX := 0
+	if maxWidth > 0 {
+		diffX = maxWidth + 2
+	}
+	if m.diff.Height() > 0 && m.diff.Width() > 0 &&
+		x >= diffX && x < diffX+m.diff.Width()+2 &&
+		y >= 0 && y < m.diff.Height() {
+		return focusDiff, -1, true
+	}
+
+	return 0, -1, false
+}
+
 func (m Model) View() tea.View {
 	if m.quitting {
 		return tea.NewView("")
