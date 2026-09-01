@@ -95,6 +95,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	if m.dropStashConfirm {
+		if key, ok := msg.(tea.KeyMsg); ok {
+			switch key.String() {
+			case "y", "enter":
+				m.dropStashConfirm = false
+				return m, m.handleDropStash
+			case "n", "esc":
+				m.dropStashConfirm = false
+				return m, nil
+			}
+		}
+		return m, nil
+	}
+
 	if m.mergePopup.active {
 		if key, ok := msg.(tea.KeyMsg); ok {
 			switch key.String() {
@@ -405,7 +419,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			// Drop stash
 			if m.focus == focusStash && len(m.stashes) > 0 {
-				return m, m.handleDropStash
+				m.dropStashConfirm = true
+				m.dropStashMessage = m.stashes[m.idxStash].Message
 			}
 			// Drop last commit
 			if m.focus == focusLog && len(m.log) > 0 {

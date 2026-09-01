@@ -187,6 +187,12 @@ type Model struct {
 	restoreFileConfirm bool
 	restoreFilePath    string
 
+	// dropStashConfirm is true while the user is confirming dropping a
+	// stash entry (m.stashes[m.idxStash] when "d" was pressed);
+	// dropStashMessage is its message, captured at that point for display.
+	dropStashConfirm bool
+	dropStashMessage string
+
 	tagPopup    tagPopup
 	commitPopup commitPopup
 
