@@ -702,3 +702,49 @@ func TestSquashCommits(t *testing.T) {
 		}
 	})
 }
+
+func TestDropLastCommit(t *testing.T) {
+	t.Run("drop last commit", func(t *testing.T) {
+		dir := initRepo(t)
+		if err := writeFile(dir, "hello.go", "line1\n"); err != nil {
+			t.Fatal(err)
+		}
+		run(t, dir, "git", "add", "hello.go")
+		run(t, dir, "git", "commit", "-m", "add line1")
+
+		if err := writeFile(dir, "hello.go", "line1\nline2\n"); err != nil {
+			t.Fatal(err)
+		}
+		run(t, dir, "git", "add", "hello.go")
+		run(t, dir, "git", "commit", "-m", "add line2")
+
+		if got, want := revCount(t, dir), "3"; got != want {
+			t.Fatalf("rev-list --count before = %q, want %q", got, want)
+		}
+
+		if err := DropLastCommit(dir); err != nil {
+			t.Fatalf("DropLastCommit() error: %v", err)
+		}
+
+		if got, want := revCount(t, dir), "2"; got != want {
+			t.Errorf("rev-list --count after = %q, want %q", got, want)
+		}
+		if got, want := headMessage(t, dir), "add line1"; got != want {
+			t.Errorf("head message = %q, want %q", got, want)
+		}
+		content, err := os.ReadFile(filepath.Join(dir, "hello.go"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got, want := string(content), "line1\n"; got != want {
+			t.Errorf("hello.go = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("drop only commit fails", func(t *testing.T) {
+		dir := initRepo(t)
+		if err := DropLastCommit(dir); err == nil {
+			t.Fatal("DropLastCommit() on single commit succeeded, want error")
+		}
+	})
+}

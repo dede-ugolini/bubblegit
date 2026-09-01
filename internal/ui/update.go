@@ -53,6 +53,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	if m.dropConfirm {
+		if key, ok := msg.(tea.KeyMsg); ok {
+			switch key.String() {
+			case "y", "enter":
+				m.dropConfirm = false
+				return m, m.handleDropCommit
+			case "n", "esc":
+				m.dropConfirm = false
+				return m, nil
+			}
+		}
+		return m, nil
+	}
+
 	if m.mergePopup.active {
 		if key, ok := msg.(tea.KeyMsg); ok {
 			switch key.String() {
@@ -351,6 +365,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Drop stash
 			if m.focus == focusStash && len(m.stashes) > 0 {
 				return m, m.handleDropStash
+			}
+			// Drop last commit
+			if m.focus == focusLog && len(m.log) > 0 {
+				m.dropConfirm = true
+				m.dropSubject = m.log[0].Subject
 			}
 
 		case "D":
@@ -805,6 +824,17 @@ func (m *Model) handleClearStash() tea.Msg {
 		return errMsg{err}
 	}
 	return stashesMsg(stashes)
+}
+
+func (m *Model) handleDropCommit() tea.Msg {
+	if err := git.DropLastCommit(m.dir); err != nil {
+		return errMsg{err}
+	}
+	log, err := git.Log(m.dir, "HEAD", 200)
+	if err != nil {
+		return errMsg{err}
+	}
+	return logMsg(log)
 }
 
 func (m *Model) handlePushStash() tea.Msg {
