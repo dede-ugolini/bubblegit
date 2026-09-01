@@ -748,3 +748,38 @@ func TestDropLastCommit(t *testing.T) {
 		}
 	})
 }
+
+func remoteURL(t *testing.T, dir string) string {
+	t.Helper()
+	cmd := exec.Command("git", "remote", "get-url", "origin")
+	cmd.Dir = dir
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("git remote get-url origin failed: %v", err)
+	}
+	return strings.TrimSpace(string(out))
+}
+
+func TestSetRemote(t *testing.T) {
+	t.Run("add remote when none exists", func(t *testing.T) {
+		dir := initRepo(t)
+		if err := SetRemote(dir, "https://example.com/repo.git"); err != nil {
+			t.Fatalf("SetRemote() error: %v", err)
+		}
+		if got, want := remoteURL(t, dir), "https://example.com/repo.git"; got != want {
+			t.Errorf("remote url = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("repoint an existing remote", func(t *testing.T) {
+		dir := initRepo(t)
+		run(t, dir, "git", "remote", "add", "origin", "https://example.com/old.git")
+
+		if err := SetRemote(dir, "https://example.com/new.git"); err != nil {
+			t.Fatalf("SetRemote() error: %v", err)
+		}
+		if got, want := remoteURL(t, dir), "https://example.com/new.git"; got != want {
+			t.Errorf("remote url = %q, want %q", got, want)
+		}
+	})
+}

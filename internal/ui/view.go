@@ -549,7 +549,7 @@ func (m *Model) renderFooter() string {
 	case focusStag:
 		return helpStyle.Render("↑/k ↓/j move · <space> stag · a stag/unstag all · d restore · t theme · q quit") + " · " + modeStr
 	case focusBranch:
-		return helpStyle.Render("↑/k ↓/j move · enter checkout · n new branch · r rename · d delete · M merge · P push · t theme · q quit") + " · " + modeStr
+		return helpStyle.Render("↑/k ↓/j move · enter checkout · n new branch · r rename · d delete · M merge · P push · R set remote · t theme · q quit") + " · " + modeStr
 	case focusLog:
 		return helpStyle.Render("↑/k ↓/j move · pgup/pgdown scroll · r reword · S squash · esc cancel · d drop last · T tag · t theme · q quit") + " · " + modeStr
 	case focusStash:

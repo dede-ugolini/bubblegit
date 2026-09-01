@@ -75,10 +75,10 @@
 * [ ] Push
 * [ ] Push force
 * [ ] Push force with lease
-* [ ] Add remote
+* [x] Add remote
 * [ ] Remove remote
 * [ ] Rename remote
-* [ ] Set remote URL
+* [x] Set remote URL
 
 ## Tags
 

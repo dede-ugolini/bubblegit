@@ -110,6 +110,7 @@ const (
 	inputActionNewBranch inputAction = iota
 	inputActionRenameBranch
 	inputActionPushStash
+	inputActionSetRemote
 )
 
 type inputPopup struct {
@@ -171,8 +172,8 @@ type Model struct {
 
 	// dropConfirm is true while the user is confirming dropping the most
 	// recent commit (m.log[0]); dropSubject is its subject for display.
-	dropConfirm  bool
-	dropSubject  string
+	dropConfirm bool
+	dropSubject string
 
 	tagPopup    tagPopup
 	commitPopup commitPopup
