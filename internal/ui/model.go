@@ -193,6 +193,12 @@ type Model struct {
 	dropStashConfirm bool
 	dropStashMessage string
 
+	// popStashConfirm is true while the user is confirming popping a
+	// stash entry (m.stashes[m.idxStash] when "p" was pressed);
+	// popStashMessage is its message, captured at that point for display.
+	popStashConfirm bool
+	popStashMessage string
+
 	tagPopup    tagPopup
 	commitPopup commitPopup
 
