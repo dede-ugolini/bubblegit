@@ -12,7 +12,7 @@
 * [x] Unstage all files
 * [ ] Add file
 * [ ] Diff file
-* [ ] Diff staged file
+* [x] Diff staged file
 
 ## Branch
 
@@ -46,10 +46,11 @@
 
 * [x] Commit
 * [x] Amend commit
+* [x] Drop last commit
 * [ ] Drop commit
 * [x] Reword commit
 * [ ] Edit commit
-* [ ] Squash commits
+* [x] Squash commits
 * [ ] Fixup commits
 * [ ] Reorder commits
 * [ ] Split commit
@@ -81,7 +82,7 @@
 
 ## Tags
 
-* [ ] Create tag
+* [x] Create tag
 * [ ] Delete tag
 * [ ] Rename tag
 * [ ] Checkout tag

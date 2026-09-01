@@ -43,6 +43,12 @@ type commitPopup struct {
 	active        bool
 	reword        bool
 	rewordHash    string
+
+	// squash fields are set when this popup was opened to confirm folding a
+	// marked range of log commits into one, mirroring reword/rewordHash.
+	squash           bool
+	squashOldestHash string
+	squashCount      int
 }
 
 type stashBranchPopup struct {
@@ -117,6 +123,21 @@ type inputPopup struct {
 	renameFrom string
 }
 
+const (
+	tagFocusName = iota
+	tagFocusMessage
+)
+
+type tagPopup struct {
+	tagName    textinput.Model
+	tagMessage textarea.Model
+	focus      int
+	active     bool
+
+	// hash is the commit being tagged, captured when the popup opens.
+	hash string
+}
+
 type Model struct {
 	dir string
 
@@ -135,12 +156,25 @@ type Model struct {
 	logHeight int
 	logWidth  int
 
+	// squashMarking is true while the user is marking a range of commits in
+	// the log panel to squash together; squashAnchor is the log index where
+	// marking started. The current range is always
+	// [min(squashAnchor, idxLog), max(squashAnchor, idxLog)].
+	squashMarking bool
+	squashAnchor  int
+
 	stashes           []git.StashEntry
 	idxStash          int
 	stashHeight       int
 	stashWidth        int
 	stashClearConfirm bool
 
+	// dropConfirm is true while the user is confirming dropping the most
+	// recent commit (m.log[0]); dropSubject is its subject for display.
+	dropConfirm  bool
+	dropSubject  string
+
+	tagPopup    tagPopup
 	commitPopup commitPopup
 
 	stashBranchPopup stashBranchPopup
@@ -174,6 +208,10 @@ func NewModel(dir string) Model {
 		commitPopup: commitPopup{
 			commitSummary: textinput.New(),
 			commitMessage: textarea.New(),
+		},
+		tagPopup: tagPopup{
+			tagName:    textinput.New(),
+			tagMessage: textarea.New(),
 		},
 		stashBranchPopup: stashBranchPopup{
 			input: textinput.New(),
