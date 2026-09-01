@@ -81,6 +81,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	if m.restoreFileConfirm {
+		if key, ok := msg.(tea.KeyMsg); ok {
+			switch key.String() {
+			case "y", "enter":
+				m.restoreFileConfirm = false
+				return m, m.handleRestoreFile
+			case "n", "esc":
+				m.restoreFileConfirm = false
+				return m, nil
+			}
+		}
+		return m, nil
+	}
+
 	if m.mergePopup.active {
 		if key, ok := msg.(tea.KeyMsg); ok {
 			switch key.String() {
@@ -386,7 +400,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			// Restore file
 			if m.focus == focusStag && len(m.files) > 0 {
-				return m, m.handleRestoreFile
+				m.restoreFileConfirm = true
+				m.restoreFilePath = m.files[m.idxFiles].Path
 			}
 			// Drop stash
 			if m.focus == focusStash && len(m.stashes) > 0 {

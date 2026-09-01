@@ -242,6 +242,25 @@ func (m Model) View() tea.View {
 		return v
 	}
 
+	if m.restoreFileConfirm {
+		popupWidth := m.width / 3
+		popupHeight := m.height / 8
+
+		popup := lipgloss.NewLayer(m.renderRestoreFileConfirmPopup()).
+			X((m.width - popupWidth) / 2).
+			Y((m.height - popupHeight) / 2).
+			Z(1)
+
+		base := lipgloss.NewLayer(m.renderNormalView()).
+			Z(0)
+
+		c := lipgloss.NewCompositor(base, popup)
+		v := tea.NewView(c.Render())
+		v.AltScreen = true
+		v.MouseMode = tea.MouseModeCellMotion
+		return v
+	}
+
 	if m.inputPopup.active {
 		popupWidth := m.width / 3
 		popupHeight := m.height / 8
@@ -298,6 +317,17 @@ func (m *Model) renderDeleteBranchConfirmPopup() string {
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(m.theme.FocusBorder).
 		Render("Delete branch '" + m.deleteBranchName + "'?\n\n" + help)
+}
+
+func (m *Model) renderRestoreFileConfirmPopup() string {
+	help := lipgloss.NewStyle().Foreground(m.theme.Muted).
+		Render("y/enter confirm · n/esc cancel")
+
+	return lipgloss.NewStyle().
+		Width(m.width / 3).
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(m.theme.FocusBorder).
+		Render("Restore '" + m.restoreFilePath + "'?\n\n" + help)
 }
 
 func (m *Model) renderStashBranchPopup() string {
