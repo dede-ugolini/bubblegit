@@ -175,6 +175,12 @@ type Model struct {
 	dropConfirm bool
 	dropSubject string
 
+	// deleteBranchConfirm is true while the user is confirming deleting a
+	// branch (m.branches[m.idxBranch] when "d" was pressed); deleteBranchName
+	// is its name, captured at that point for display.
+	deleteBranchConfirm bool
+	deleteBranchName    string
+
 	tagPopup    tagPopup
 	commitPopup commitPopup
 

@@ -67,6 +67,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	if m.deleteBranchConfirm {
+		if key, ok := msg.(tea.KeyMsg); ok {
+			switch key.String() {
+			case "y", "enter":
+				m.deleteBranchConfirm = false
+				return m, m.handleDeleteBranch
+			case "n", "esc":
+				m.deleteBranchConfirm = false
+				return m, nil
+			}
+		}
+		return m, nil
+	}
+
 	if m.mergePopup.active {
 		if key, ok := msg.(tea.KeyMsg); ok {
 			switch key.String() {
@@ -367,7 +381,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "d":
 			// Delete Branch
 			if m.focus == focusBranch && len(m.branches) > 0 {
-				return m, m.handleDeleteBranch
+				m.deleteBranchConfirm = true
+				m.deleteBranchName = m.branches[m.idxBranch].Name
 			}
 			// Restore file
 			if m.focus == focusStag && len(m.files) > 0 {
