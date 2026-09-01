@@ -26,7 +26,7 @@
 * [ ] Abort rebase
 * [ ] Continue merge
 * [ ] Continue rebase
-* [ ] Push branch
+* [x] Push branch
 * [ ] Pull branch
 * [ ] Fetch branch
 * [ ] Set upstream branch

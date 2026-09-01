@@ -88,3 +88,16 @@ func RenameBranch(dir, oldName, newName string) error {
 	}
 	return nil
 }
+
+// Push pushes branch to the origin remote, setting it as the upstream so a
+// later pull needs no arguments. Errors (no origin remote, rejected
+// non-fast-forward push, etc.) surface as the trimmed git stderr.
+func Push(dir, branch string) error {
+	cmd := exec.Command("git", "push", "-u", "origin", branch)
+	cmd.Dir = dir
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("%s", strings.TrimSpace(string(out)))
+	}
+	return nil
+}
