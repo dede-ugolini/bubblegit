@@ -280,6 +280,25 @@ func (m Model) View() tea.View {
 		return v
 	}
 
+	if m.popStashConfirm {
+		popupWidth := m.width / 3
+		popupHeight := m.height / 8
+
+		popup := lipgloss.NewLayer(m.renderPopStashConfirmPopup()).
+			X((m.width - popupWidth) / 2).
+			Y((m.height - popupHeight) / 2).
+			Z(1)
+
+		base := lipgloss.NewLayer(m.renderNormalView()).
+			Z(0)
+
+		c := lipgloss.NewCompositor(base, popup)
+		v := tea.NewView(c.Render())
+		v.AltScreen = true
+		v.MouseMode = tea.MouseModeCellMotion
+		return v
+	}
+
 	if m.inputPopup.active {
 		popupWidth := m.width / 3
 		popupHeight := m.height / 8
@@ -358,6 +377,17 @@ func (m *Model) renderDropStashConfirmPopup() string {
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(m.theme.FocusBorder).
 		Render("Drop stash '" + m.dropStashMessage + "'?\n\n" + help)
+}
+
+func (m *Model) renderPopStashConfirmPopup() string {
+	help := lipgloss.NewStyle().Foreground(m.theme.Muted).
+		Render("y/enter confirm · n/esc cancel")
+
+	return lipgloss.NewStyle().
+		Width(m.width / 3).
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(m.theme.FocusBorder).
+		Render("Pop stash '" + m.popStashMessage + "'?\n\n" + help)
 }
 
 func (m *Model) renderStashBranchPopup() string {
