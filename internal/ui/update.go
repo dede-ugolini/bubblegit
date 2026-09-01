@@ -289,7 +289,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.filesWidth = msg.Width * 45 / 100
 		m.branchHeight = msg.Height * 15 / 100
 		m.branchWidth = msg.Width * 45 / 100
-		m.logHeight = msg.Height * 20 / 100
+		m.logHeight = msg.Height * 42 / 100
 		m.logWidth = msg.Width * 45 / 100
 		m.stashHeight = msg.Height * 15 / 100
 		m.stashWidth = msg.Width * 45 / 100
