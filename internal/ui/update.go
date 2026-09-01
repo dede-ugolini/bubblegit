@@ -1,6 +1,9 @@
 package ui
 
 import (
+	"fmt"
+	"strings"
+
 	"bubblegit/internal/git"
 
 	"charm.land/bubbles/v2/textinput"
@@ -8,6 +11,34 @@ import (
 )
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if m.squashMarking {
+		if key, ok := msg.(tea.KeyMsg); ok {
+			switch key.String() {
+			case "up", "k":
+				m.moveLog(-1)
+				return m, m.showDiff()
+			case "down", "j":
+				m.moveLog(1)
+				return m, m.showDiff()
+			case "S":
+				lo, hi := m.squashAnchor, m.idxLog
+				if lo > hi {
+					lo, hi = hi, lo
+				}
+				count := hi - lo + 1
+				m.squashMarking = false
+				if count < 2 {
+					return m, func() tea.Msg { return errMsg{fmt.Errorf("select at least two commits to squash")} }
+				}
+				return m, m.startSquash(lo, hi)
+			case "esc":
+				m.squashMarking = false
+				return m, nil
+			}
+		}
+		return m, nil
+	}
+
 	if m.stashClearConfirm {
 		if key, ok := msg.(tea.KeyMsg); ok {
 			switch key.String() {
@@ -16,6 +47,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, m.handleClearStash
 			case "n", "esc":
 				m.stashClearConfirm = false
+				return m, nil
+			}
+		}
+		return m, nil
+	}
+
+	if m.dropConfirm {
+		if key, ok := msg.(tea.KeyMsg); ok {
+			switch key.String() {
+			case "y", "enter":
+				m.dropConfirm = false
+				return m, m.handleDropCommit
+			case "n", "esc":
+				m.dropConfirm = false
 				return m, nil
 			}
 		}
@@ -108,6 +153,51 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, cmd
 		}
 		m.commitPopup.commitMessage, cmd = m.commitPopup.commitMessage.Update(msg)
+		return m, cmd
+	}
+
+	if m.tagPopup.active {
+		if key, ok := msg.(tea.KeyMsg); ok {
+			switch key.String() {
+			case "ctrl+s":
+				if m.tagPopup.tagName.Value() == "" {
+					return m, nil
+				}
+				m.tagPopup.tagName.Blur()
+				m.tagPopup.tagMessage.Blur()
+				m.tagPopup.active = false
+				return m, tea.Batch(m.handleTag, m.Refresh())
+			case "tab":
+				if m.tagPopup.focus == tagFocusName {
+					m.tagPopup.tagName.Blur()
+					m.tagPopup.tagMessage.Focus()
+					m.tagPopup.focus = tagFocusMessage
+				} else {
+					m.tagPopup.tagMessage.Blur()
+					m.tagPopup.tagName.Focus()
+					m.tagPopup.focus = tagFocusName
+				}
+				return m, nil
+			case "esc":
+				m.tagPopup.tagName.Blur()
+				m.tagPopup.tagMessage.Blur()
+				m.tagPopup.active = false
+				return m, nil
+			case "enter":
+				if m.tagPopup.focus == tagFocusName {
+					m.tagPopup.tagName.Blur()
+					m.tagPopup.tagMessage.Focus()
+					m.tagPopup.focus = tagFocusMessage
+				}
+				return m, nil
+			}
+		}
+		var cmd tea.Cmd
+		if m.tagPopup.focus == tagFocusName {
+			m.tagPopup.tagName, cmd = m.tagPopup.tagName.Update(msg)
+			return m, cmd
+		}
+		m.tagPopup.tagMessage, cmd = m.tagPopup.tagMessage.Update(msg)
 		return m, cmd
 	}
 
@@ -276,6 +366,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.focus == focusStash && len(m.stashes) > 0 {
 				return m, m.handleDropStash
 			}
+			// Drop last commit
+			if m.focus == focusLog && len(m.log) > 0 {
+				m.dropConfirm = true
+				m.dropSubject = m.log[0].Subject
+			}
 
 		case "D":
 			// Clear Stash
@@ -378,6 +473,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.focus == focusStag && len(m.files) > 0 && git.HasOneStaged(m.files) {
 				m.commitPopup.reword = false
 				m.commitPopup.rewordHash = ""
+				m.commitPopup.squash = false
+				m.commitPopup.squashOldestHash = ""
+				m.commitPopup.squashCount = 0
 				m.commitPopup.focus = commitFocusSummary
 				m.commitPopup.commitSummary.SetWidth(m.width / 3)
 				m.commitPopup.commitMessage.SetWidth(m.width / 3)
@@ -508,11 +606,34 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.useDelta = !m.useDelta
 			return m, m.showDiff()
 
+		case "S":
+			// Squash: start marking a range of commits to fold together.
+			if m.focus == focusLog && len(m.log) > 0 {
+				m.squashMarking = true
+				m.squashAnchor = m.idxLog
+			}
+
 		case "M":
 			if m.focus == focusBranch && len(m.branches) > 0 {
 				m.mergePopup.active = true
 				m.mergePopup.idx = 0
 				m.mergePopup.branch = m.branches[m.idxBranch].Name
+			}
+
+		case "T":
+			if m.focus == focusLog && len(m.log) > 0 {
+				m.tagPopup.active = true
+				m.tagPopup.hash = m.log[m.idxLog].Hash
+				m.tagPopup.focus = tagFocusName
+				m.tagPopup.tagName.SetWidth(m.width / 3)
+				m.tagPopup.tagMessage.SetWidth(m.width / 3)
+				m.tagPopup.tagName.SetValue("")
+				m.tagPopup.tagMessage.SetValue("")
+				m.tagPopup.tagName.Placeholder = "Tag name"
+				m.tagPopup.tagMessage.Placeholder = "Tag message (optional)"
+				m.tagPopup.tagName.Focus()
+				m.tagPopup.tagMessage.Blur()
+				return m, textinput.Blink
 			}
 		}
 	}
@@ -531,11 +652,32 @@ func (m Model) showDiff() tea.Cmd {
 				diff string
 				err  error
 			)
-			if m.useDelta {
-				diff, err = git.DiffDelta(m.dir, m.files[m.idxFiles].Path, m.panelFullScreen, m.diff.Width())
-			} else {
-				diff, err = git.Diff(m.dir, m.files[m.idxFiles].Path)
+			file := m.files[m.idxFiles]
+			// Untracked() is also true for Unstaged() (an untracked file has
+			// no staged changes, so its worktree side is by definition
+			// unstaged) and a partially-staged file satisfies both Staged()
+			// and Unstaged() - these are deliberately if/else-if, in
+			// priority order, so exactly one diff is computed per file.
+			if file.Staged() {
+				if m.useDelta {
+					diff, err = git.DiffDeltaStaged(m.dir, m.files[m.idxFiles].Path, m.panelFullScreen, m.diff.Width())
+				} else {
+					diff, err = git.DiffStaged(m.dir, m.files[m.idxFiles].Path)
+				}
+			} else if file.Untracked() {
+				if m.useDelta {
+					diff, err = git.DiffDeltaUntracked(m.dir, m.files[m.idxFiles].Path, m.panelFullScreen, m.diff.Width())
+				} else {
+					diff, err = git.DiffUntracked(m.dir, m.files[m.idxFiles].Path)
+				}
+			} else if file.Unstaged() {
+				if m.useDelta {
+					diff, err = git.DiffDelta(m.dir, m.files[m.idxFiles].Path, m.panelFullScreen, m.diff.Width())
+				} else {
+					diff, err = git.Diff(m.dir, m.files[m.idxFiles].Path)
+				}
 			}
+
 			if err != nil {
 				return errMsg{err}
 			}
@@ -684,6 +826,17 @@ func (m *Model) handleClearStash() tea.Msg {
 	return stashesMsg(stashes)
 }
 
+func (m *Model) handleDropCommit() tea.Msg {
+	if err := git.DropLastCommit(m.dir); err != nil {
+		return errMsg{err}
+	}
+	log, err := git.Log(m.dir, "HEAD", 200)
+	if err != nil {
+		return errMsg{err}
+	}
+	return logMsg(log)
+}
+
 func (m *Model) handlePushStash() tea.Msg {
 	if err := git.StashPush(m.dir, m.inputPopup.input.Value()); err != nil {
 		return errMsg{err}
@@ -787,11 +940,24 @@ func (m *Model) handleCommit() tea.Msg {
 		// Rewording HEAD is a plain amend: no rebase, and it doesn't care
 		// about the working tree being dirty the way rebase would.
 		err = git.Ammend(m.dir, full)
+	case m.commitPopup.squash:
+		err = git.SquashCommits(m.dir, m.commitPopup.squashOldestHash, m.commitPopup.squashCount, full)
 	case m.commitPopup.reword:
 		err = git.RewordCommit(m.dir, m.commitPopup.rewordHash, full)
 	default:
 		err = git.Commit(m.dir, full)
 	}
+	if err != nil {
+		return errMsg{err}
+	}
+	return nil
+}
+
+func (m *Model) handleTag() tea.Msg {
+	name := m.tagPopup.tagName.Value()
+	message := m.tagPopup.tagMessage.Value()
+	hash := m.tagPopup.hash
+	err := git.CreateTag(m.dir, name, message, hash)
 	if err != nil {
 		return errMsg{err}
 	}
@@ -814,11 +980,44 @@ func (m *Model) handleRewordCommit() tea.Cmd {
 	entry := m.log[m.idxLog]
 	m.commitPopup.reword = true
 	m.commitPopup.rewordHash = entry.Hash
+	m.commitPopup.squash = false
+	m.commitPopup.squashOldestHash = ""
+	m.commitPopup.squashCount = 0
 	m.commitPopup.focus = commitFocusSummary
 	m.commitPopup.commitSummary.SetWidth(m.width / 3)
 	m.commitPopup.commitMessage.SetWidth(m.width / 3)
 	m.commitPopup.commitSummary.SetValue(entry.Subject)
 	m.commitPopup.commitMessage.SetValue(entry.Body)
+	m.commitPopup.commitSummary.Placeholder = "Commit summary"
+	m.commitPopup.commitMessage.Placeholder = "Commit message"
+	m.commitPopup.commitSummary.Focus()
+	m.commitPopup.commitMessage.Blur()
+	m.commitPopup.active = true
+	return textinput.Blink
+}
+
+// startSquash opens commitPopup to confirm squashing the marked log range
+// [lo, hi] (indices into m.log, which is newest-first) into one commit,
+// pre-filled with the newest subject as the summary and every subject in
+// the range, oldest first, as a bulleted message body - mirroring
+// handleRewordCommit's single-entry prefill.
+func (m *Model) startSquash(lo, hi int) tea.Cmd {
+	m.commitPopup.reword = false
+	m.commitPopup.rewordHash = ""
+	m.commitPopup.squash = true
+	m.commitPopup.squashOldestHash = m.log[hi].Hash
+	m.commitPopup.squashCount = hi - lo + 1
+
+	subjects := make([]string, 0, hi-lo+1)
+	for i := hi; i >= lo; i-- {
+		subjects = append(subjects, "- "+m.log[i].Subject)
+	}
+
+	m.commitPopup.focus = commitFocusSummary
+	m.commitPopup.commitSummary.SetWidth(m.width / 3)
+	m.commitPopup.commitMessage.SetWidth(m.width / 3)
+	m.commitPopup.commitSummary.SetValue(m.log[lo].Subject)
+	m.commitPopup.commitMessage.SetValue(strings.Join(subjects, "\n"))
 	m.commitPopup.commitSummary.Placeholder = "Commit summary"
 	m.commitPopup.commitMessage.Placeholder = "Commit message"
 	m.commitPopup.commitSummary.Focus()
