@@ -123,6 +123,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	if m.amendConfirm {
+		if key, ok := msg.(tea.KeyMsg); ok {
+			switch key.String() {
+			case "y", "enter":
+				m.amendConfirm = false
+				return m, m.handleAmend
+			case "n", "esc":
+				m.amendConfirm = false
+				return m, nil
+			}
+		}
+		return m, nil
+	}
+
 	if m.mergePopup.active {
 		if key, ok := msg.(tea.KeyMsg); ok {
 			switch key.String() {
@@ -530,8 +544,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "A":
 			// Amend commit
-			if m.focus == focusStag && len(m.files) > 0 && git.HasOneStaged(m.files) {
-				return m, m.handleAmend
+			if m.focus == focusStag && len(m.files) > 0 && git.HasOneStaged(m.files) && len(m.log) > 0 {
+				m.amendConfirm = true
+				m.amendSubject = m.log[0].Subject
 			}
 		case "p":
 			// Pop stash

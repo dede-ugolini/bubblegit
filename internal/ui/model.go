@@ -199,6 +199,12 @@ type Model struct {
 	popStashConfirm bool
 	popStashMessage string
 
+	// amendConfirm is true while the user is confirming amending HEAD
+	// (m.log[0] when "A" was pressed); amendSubject is its subject,
+	// captured at that point for display.
+	amendConfirm bool
+	amendSubject string
+
 	tagPopup    tagPopup
 	commitPopup commitPopup
 
