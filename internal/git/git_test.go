@@ -760,6 +760,40 @@ func remoteURL(t *testing.T, dir string) string {
 	return strings.TrimSpace(string(out))
 }
 
+func TestTagsByCommit(t *testing.T) {
+	t.Run("no tags", func(t *testing.T) {
+		dir := initRepo(t)
+		tags, err := TagsByCommit(dir)
+		if err != nil {
+			t.Fatalf("TagsByCommit() error: %v", err)
+		}
+		if tags != nil {
+			t.Fatalf("TagsByCommit() = %v, want nil", tags)
+		}
+	})
+
+	t.Run("annotated and lightweight tags", func(t *testing.T) {
+		dir := initRepo(t)
+		hash := revParse(t, dir, "HEAD")
+
+		run(t, dir, "git", "tag", "-a", "v1.0", "-m", "release 1.0")
+		run(t, dir, "git", "tag", "light")
+
+		tags, err := TagsByCommit(dir)
+		if err != nil {
+			t.Fatalf("TagsByCommit() error: %v", err)
+		}
+		got := tags[hash]
+		if len(got) != 2 {
+			t.Fatalf("TagsByCommit()[%s] = %v, want 2 tags", hash, got)
+		}
+		names := map[string]bool{got[0]: true, got[1]: true}
+		if !names["v1.0"] || !names["light"] {
+			t.Errorf("tags = %v, want v1.0 and light", got)
+		}
+	})
+}
+
 func TestSetRemote(t *testing.T) {
 	t.Run("add remote when none exists", func(t *testing.T) {
 		dir := initRepo(t)
