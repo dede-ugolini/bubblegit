@@ -654,6 +654,28 @@ func (m *Model) renderBranches() string {
 		Render(strings.Join(names, "\n"))
 }
 
+// authorInitials returns an up-to-two-letter uppercase abbreviation for an
+// author name: the first letter of the first and last word ("John Francis
+// Doe" -> "JD"). Single-word names ("Linus") are just "L". Returns "" for an
+// empty/whitespace-only author so callers can skip rendering it.
+func authorInitials(author string) string {
+	words := strings.Fields(author)
+	if len(words) == 0 {
+		return ""
+	}
+	up := func(b byte) byte {
+		if b >= 'a' && b <= 'z' {
+			b -= 'a' - 'A'
+		}
+		return b
+	}
+	out := []byte{up(words[0][0])}
+	if len(words) > 1 {
+		out = append(out, up(words[len(words)-1][0]))
+	}
+	return string(out)
+}
+
 func (m *Model) renderLog() string {
 	if m.logHeight <= 0 || m.logWidth <= 0 {
 		return ""
@@ -663,6 +685,7 @@ func (m *Model) renderLog() string {
 	dateColor := lipgloss.NewStyle().Foreground(m.theme.Date)
 	shortHashColor := lipgloss.NewStyle().Foreground(m.theme.Hash)
 	tagColor := lipgloss.NewStyle().Foreground(m.theme.Accent)
+	authorColor := lipgloss.NewStyle().Foreground(m.theme.Author)
 
 	lo, hi := m.squashAnchor, m.idxLog
 	if lo > hi {
@@ -686,6 +709,9 @@ func (m *Model) renderLog() string {
 			if tagStr != "" {
 				plainLine += " " + tagStr
 			}
+			if init := authorInitials(l.Author); init != "" {
+				plainLine += " " + init
+			}
 			entrys = append(entrys, lipgloss.NewStyle().Width(m.logWidth).Background(m.theme.Cursor).Render(plainLine+" "+l.Subject))
 			continue
 		}
@@ -694,6 +720,9 @@ func (m *Model) renderLog() string {
 		line := shortHash + " " + date
 		if tagStr != "" {
 			line += " " + tagColor.Render(tagStr)
+		}
+		if init := authorInitials(l.Author); init != "" {
+			line += " " + authorColor.Render(init)
 		}
 		entrys = append(entrys, lipgloss.NewStyle().Width(m.logWidth).Render(line+" "+l.Subject))
 	}
