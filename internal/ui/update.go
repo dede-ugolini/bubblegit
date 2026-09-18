@@ -333,6 +333,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.log = []git.LogEntry(msg)
 		return m, nil
 
+	case tagsMsg:
+		m.tags = map[string][]string(msg)
+		return m, nil
+
 	case stashesMsg:
 		m.stashes = []git.StashEntry(msg)
 		if m.idxStash >= len(m.stashes) {

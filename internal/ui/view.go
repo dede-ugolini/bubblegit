@@ -662,6 +662,7 @@ func (m *Model) renderLog() string {
 	start, end := visibleWindow(len(m.log), m.logHeight, m.idxLog)
 	dateColor := lipgloss.NewStyle().Foreground(m.theme.Date)
 	shortHashColor := lipgloss.NewStyle().Foreground(m.theme.Hash)
+	tagColor := lipgloss.NewStyle().Foreground(m.theme.Accent)
 
 	lo, hi := m.squashAnchor, m.idxLog
 	if lo > hi {
@@ -671,18 +672,22 @@ func (m *Model) renderLog() string {
 	var entrys []string
 	for i := start; i < end; i++ {
 		l := m.log[i]
+		subject := l.Subject
+		if names := m.tags[l.Hash]; len(names) > 0 {
+			subject += tagColor.Render(" (" + strings.Join(names, ", ") + ")")
+		}
 		if (i == m.idxLog && m.focus == focusLog) || (m.squashMarking && i >= lo && i <= hi) {
 			// Deliberately plain text here: dateColor/shortHashColor each
 			// end in their own ANSI reset, which - nested inside this
 			// Background() - would wipe the highlight out from under the
 			// date and subject the moment it's hit (\x1b[m clears every
 			// SGR attribute, not just foreground).
-			entrys = append(entrys, lipgloss.NewStyle().Width(m.logWidth).Background(m.theme.Cursor).Render(l.ShortHash+" "+l.Date+" "+l.Subject))
+			entrys = append(entrys, lipgloss.NewStyle().Width(m.logWidth).Background(m.theme.Cursor).Render(l.ShortHash+" "+l.Date+" "+subject))
 			continue
 		}
 		date := dateColor.Render(l.Date)
 		shortHash := shortHashColor.Render(l.ShortHash)
-		entrys = append(entrys, lipgloss.NewStyle().Width(m.logWidth).Render(shortHash+" "+date+" "+l.Subject))
+		entrys = append(entrys, lipgloss.NewStyle().Width(m.logWidth).Render(shortHash+" "+date+" "+subject))
 	}
 	// The outer style deliberately has no Width of its own - see the
 	// matching note in renderStash below.
