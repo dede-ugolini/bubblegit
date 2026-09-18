@@ -15,8 +15,8 @@ func main() {
 		fmt.Fprintln(os.Stderr, "bubblegit:", err)
 		os.Exit(1)
 	}
-	if len(os.Args) < 1 {
-		dir = os.Args[0]
+	if len(os.Args) > 1 {
+		dir = os.Args[1]
 	}
 	p := tea.NewProgram(ui.NewModel(dir))
 
