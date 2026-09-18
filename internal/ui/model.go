@@ -25,6 +25,7 @@ type (
 	filesMsg    []git.FileStatus
 	branchesMsg []git.BranchInfo
 	logMsg      []git.LogEntry
+	tagsMsg     map[string][]string
 	stashesMsg  []git.StashEntry
 	diffMsg     struct{ diff string }
 	errMsg      struct{ err error }
@@ -157,6 +158,8 @@ type Model struct {
 	logHeight int
 	logWidth  int
 
+	tags map[string][]string
+
 	// squashMarking is true while the user is marking a range of commits in
 	// the log panel to squash together; squashAnchor is the log index where
 	// marking started. The current range is always
@@ -288,6 +291,13 @@ func (m Model) Refresh() tea.Cmd {
 				return errMsg{err}
 			}
 			return logMsg(log)
+		},
+		func() tea.Msg {
+			tags, err := git.TagsByCommit(m.dir)
+			if err != nil {
+				return errMsg{err}
+			}
+			return tagsMsg(tags)
 		},
 		func() tea.Msg {
 			stashes, err := git.Stashes(m.dir)
