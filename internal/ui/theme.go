@@ -41,6 +41,9 @@ type Theme struct {
 	// Hash colors the commit short-hash / stash ref field in the log/stash
 	// panels.
 	Hash color.Color
+
+	// Author colors the author initials shown in the log panel.
+	Author color.Color
 }
 
 // themeSystem relies entirely on the terminal's own ANSI palette (basic
@@ -58,6 +61,7 @@ var themeSystem = Theme{
 	Muted:       lipgloss.Color("240"),
 	Date:        lipgloss.ANSIColor(12),
 	Hash:        lipgloss.ANSIColor(14),
+	Author:      lipgloss.ANSIColor(13),
 }
 
 // themeNord maps the same slots onto the Nord palette
