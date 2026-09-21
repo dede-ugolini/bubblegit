@@ -101,12 +101,16 @@ func (m Model) panelAt(x, y int) (target, row int, ok bool) {
 
 func (m Model) View() tea.View {
 	if m.quitting {
-		return tea.NewView("")
+		v := tea.NewView("")
+		m.setBackground(&v)
+		return v
 	}
 
 	// TODO: add spinner
 	if !m.ready {
-		return tea.NewView("Loading...")
+		v := tea.NewView("Loading...")
+		m.setBackground(&v)
+		return v
 	}
 
 	if m.commitPopup.active {
@@ -125,6 +129,7 @@ func (m Model) View() tea.View {
 		v := tea.NewView(c.Render())
 		v.AltScreen = true
 		v.MouseMode = tea.MouseModeCellMotion
+		m.setBackground(&v)
 		return v
 	}
 
@@ -144,6 +149,7 @@ func (m Model) View() tea.View {
 		v := tea.NewView(c.Render())
 		v.AltScreen = true
 		v.MouseMode = tea.MouseModeCellMotion
+		m.setBackground(&v)
 		return v
 	}
 
@@ -163,6 +169,7 @@ func (m Model) View() tea.View {
 		v := tea.NewView(c.Render())
 		v.AltScreen = true
 		v.MouseMode = tea.MouseModeCellMotion
+		m.setBackground(&v)
 		return v
 	}
 
@@ -182,6 +189,7 @@ func (m Model) View() tea.View {
 		v := tea.NewView(c.Render())
 		v.AltScreen = true
 		v.MouseMode = tea.MouseModeCellMotion
+		m.setBackground(&v)
 		return v
 	}
 
@@ -201,6 +209,7 @@ func (m Model) View() tea.View {
 		v := tea.NewView(c.Render())
 		v.AltScreen = true
 		v.MouseMode = tea.MouseModeCellMotion
+		m.setBackground(&v)
 		return v
 	}
 
@@ -220,6 +229,7 @@ func (m Model) View() tea.View {
 		v := tea.NewView(c.Render())
 		v.AltScreen = true
 		v.MouseMode = tea.MouseModeCellMotion
+		m.setBackground(&v)
 		return v
 	}
 
@@ -239,6 +249,7 @@ func (m Model) View() tea.View {
 		v := tea.NewView(c.Render())
 		v.AltScreen = true
 		v.MouseMode = tea.MouseModeCellMotion
+		m.setBackground(&v)
 		return v
 	}
 
@@ -258,6 +269,7 @@ func (m Model) View() tea.View {
 		v := tea.NewView(c.Render())
 		v.AltScreen = true
 		v.MouseMode = tea.MouseModeCellMotion
+		m.setBackground(&v)
 		return v
 	}
 
@@ -277,6 +289,7 @@ func (m Model) View() tea.View {
 		v := tea.NewView(c.Render())
 		v.AltScreen = true
 		v.MouseMode = tea.MouseModeCellMotion
+		m.setBackground(&v)
 		return v
 	}
 
@@ -296,6 +309,7 @@ func (m Model) View() tea.View {
 		v := tea.NewView(c.Render())
 		v.AltScreen = true
 		v.MouseMode = tea.MouseModeCellMotion
+		m.setBackground(&v)
 		return v
 	}
 
@@ -315,6 +329,7 @@ func (m Model) View() tea.View {
 		v := tea.NewView(c.Render())
 		v.AltScreen = true
 		v.MouseMode = tea.MouseModeCellMotion
+		m.setBackground(&v)
 		return v
 	}
 
@@ -334,13 +349,19 @@ func (m Model) View() tea.View {
 		v := tea.NewView(c.Render())
 		v.AltScreen = true
 		v.MouseMode = tea.MouseModeCellMotion
+		m.setBackground(&v)
 		return v
 	}
 
 	v := tea.NewView(m.renderNormalView())
 	v.AltScreen = true
 	v.MouseMode = tea.MouseModeCellMotion
+	m.setBackground(&v)
 	return v
+}
+
+func (m Model) setBackground(v *tea.View) {
+	v.BackgroundColor = m.theme.Background
 }
 
 func (m *Model) renderStashClearConfirmPopup() string {

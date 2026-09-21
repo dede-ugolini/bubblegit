@@ -44,6 +44,9 @@ type Theme struct {
 
 	// Author colors the author initials shown in the log panel.
 	Author color.Color
+	// Background sets the terminal background color. When nil the
+	// terminal's own default background is used.
+	Background color.Color
 }
 
 // themeSystem relies entirely on the terminal's own ANSI palette (basic
@@ -78,15 +81,120 @@ var themeNord = Theme{
 	Muted:       lipgloss.Color("#4C566A"), // nord3  - polar night, gray
 	Date:        lipgloss.Color("#81A1C1"), // nord9  - frost, blue
 	Hash:        lipgloss.Color("#8FBCBB"), // nord7  - frost, teal
+	Background:  lipgloss.Color("#2E3440"), // nord0  - polar night, darkest
+}
+
+// themeDracula maps the slots onto the Dracula palette
+// (https://draculatheme.com/).
+var themeDracula = Theme{
+	FocusBorder: lipgloss.Color("#BD93F9"), // purple
+	Cursor:      lipgloss.Color("#44475A"), // current line
+	Accent:      lipgloss.Color("#FF79C6"), // pink
+	Added:       lipgloss.Color("#50FA7B"), // green
+	Removed:     lipgloss.Color("#FF5555"), // red
+	Conflict:    lipgloss.Color("#FFB86C"), // orange
+	Error:       lipgloss.Color("#FF5555"), // red
+	Muted:       lipgloss.Color("#6272A4"), // comment
+	Date:        lipgloss.Color("#8BE9FD"), // cyan
+	Hash:        lipgloss.Color("#F1FA8C"), // yellow
+	Background:  lipgloss.Color("#282A36"), // background
+}
+
+// themeCatppuccin maps the slots onto the Catppuccin Mocha palette
+// (https://catppuccin.com/).
+var themeCatppuccin = Theme{
+	FocusBorder: lipgloss.Color("#B4BEFE"), // lavender
+	Cursor:      lipgloss.Color("#45475A"), // surface1
+	Accent:      lipgloss.Color("#F9E2AF"), // yellow
+	Added:       lipgloss.Color("#A6E3A1"), // green
+	Removed:     lipgloss.Color("#F38BA8"), // red
+	Conflict:    lipgloss.Color("#FAB387"), // peach
+	Error:       lipgloss.Color("#F38BA8"), // red
+	Muted:       lipgloss.Color("#A6ADC8"), // subtext0
+	Date:        lipgloss.Color("#89B4FA"), // blue
+	Hash:        lipgloss.Color("#94E2D5"), // teal
+	Background:  lipgloss.Color("#1E1E2E"), // base
+}
+
+// themeSolarized maps the slots onto the Solarized dark palette
+// (https://github.com/altercation/solarized).
+var themeSolarized = Theme{
+	FocusBorder: lipgloss.Color("#2AA198"), // cyan
+	Cursor:      lipgloss.Color("#073642"), // base02
+	Accent:      lipgloss.Color("#B58900"), // yellow
+	Added:       lipgloss.Color("#859900"), // green
+	Removed:     lipgloss.Color("#DC322F"), // red
+	Conflict:    lipgloss.Color("#CB4B16"), // orange
+	Error:       lipgloss.Color("#DC322F"), // red
+	Muted:       lipgloss.Color("#586E75"), // base01
+	Date:        lipgloss.Color("#268BD2"), // blue
+	Hash:        lipgloss.Color("#839496"), // base0
+	Background:  lipgloss.Color("#002B36"), // base03
+}
+
+// themeTokyoNight maps the slots onto the Tokyo Night palette
+// (https://github.com/enkia/tokyo-night-vscode-theme).
+var themeTokyoNight = Theme{
+	FocusBorder: lipgloss.Color("#7AA2F7"), // blue
+	Cursor:      lipgloss.Color("#414868"), // bg_highlight
+	Accent:      lipgloss.Color("#E0AF68"), // yellow
+	Added:       lipgloss.Color("#9ECE6A"), // green
+	Removed:     lipgloss.Color("#F7768E"), // red
+	Conflict:    lipgloss.Color("#FF9E64"), // orange
+	Error:       lipgloss.Color("#F7768E"), // red
+	Muted:       lipgloss.Color("#565F89"), // comment
+	Date:        lipgloss.Color("#7DCFFF"), // cyan
+	Hash:        lipgloss.Color("#BB9AF7"), // purple
+	Background:  lipgloss.Color("#1A1B26"), // background
+}
+
+// themeGruvbox maps the slots onto the Gruvbox dark palette
+// (https://github.com/morhetz/gruvbox).
+var themeGruvbox = Theme{
+	FocusBorder: lipgloss.Color("#83A598"), // blue
+	Cursor:      lipgloss.Color("#3C3836"), // bg1
+	Accent:      lipgloss.Color("#FABD2F"), // yellow
+	Added:       lipgloss.Color("#B8BB26"), // green
+	Removed:     lipgloss.Color("#FB4934"), // red
+	Conflict:    lipgloss.Color("#FE8019"), // orange
+	Error:       lipgloss.Color("#FB4934"), // red
+	Muted:       lipgloss.Color("#928374"), // gray
+	Date:        lipgloss.Color("#83A598"), // blue
+	Hash:        lipgloss.Color("#D3869B"), // purple
+	Background:  lipgloss.Color("#282828"), // bg0
+}
+
+// themeOneDark maps the slots onto the One Dark palette (Atom editor).
+var themeOneDark = Theme{
+	FocusBorder: lipgloss.Color("#61AFEF"), // blue
+	Cursor:      lipgloss.Color("#3E4452"), // one-dark-bg-highlight
+	Accent:      lipgloss.Color("#E5C07B"), // yellow
+	Added:       lipgloss.Color("#98C379"), // green
+	Removed:     lipgloss.Color("#E06C75"), // red
+	Conflict:    lipgloss.Color("#D19A66"), // orange
+	Error:       lipgloss.Color("#E06C75"), // red
+	Muted:       lipgloss.Color("#5C6370"), // comment
+	Date:        lipgloss.Color("#56B6C2"), // cyan
+	Hash:        lipgloss.Color("#C678DD"), // purple
+	Background:  lipgloss.Color("#282C34"), // background
 }
 
 // themeOrder is the cycling order for the "t" keybind; themesByName must have
 // exactly these keys.
-var themeOrder = []string{"system", "nord"}
+var themeOrder = []string{
+	"system", "nord", "dracula", "catppuccin",
+	"solarized", "tokyonight", "gruvbox", "onedark",
+}
 
 var themesByName = map[string]Theme{
-	"system": themeSystem,
-	"nord":   themeNord,
+	"system":     themeSystem,
+	"nord":       themeNord,
+	"dracula":    themeDracula,
+	"catppuccin": themeCatppuccin,
+	"solarized":  themeSolarized,
+	"tokyonight": themeTokyoNight,
+	"gruvbox":    themeGruvbox,
+	"onedark":    themeOneDark,
 }
 
 // nextTheme returns the name and value of the theme that follows current
