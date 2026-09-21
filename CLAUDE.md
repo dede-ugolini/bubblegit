@@ -11,8 +11,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```sh
 go build -o bubblegit .   # build the binary (also gitignored as /bubblegit)
 go run .                  # run against the git repo in the current directory
-go test ./...             # run all tests
-go test ./internal/git -run TestMerge   # run a single test
 go vet ./...
 ```
 
