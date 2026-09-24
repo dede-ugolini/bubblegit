@@ -150,7 +150,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				mode := mergeModes[m.mergePopup.idx]
 				branch := m.mergePopup.branch
 				m.mergePopup.active = false
-				return m, tea.Batch(func() tea.Msg { return m.handleMerge(branch, mode) }, m.Refresh())
+				return m, tea.Sequence(func() tea.Msg { return m.handleMerge(branch, mode) }, m.Refresh())
 			case "esc":
 				m.mergePopup.active = false
 				return m, nil
@@ -169,7 +169,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				m.stashBranchPopup.input.Blur()
 				m.stashBranchPopup.active = false
-				return m, tea.Batch(m.handleStashBranch, m.Refresh())
+				return m, tea.Sequence(m.handleStashBranch, m.Refresh())
 			case "esc":
 				m.stashBranchPopup.input.Blur()
 				m.stashBranchPopup.active = false
@@ -191,7 +191,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.commitPopup.commitSummary.Blur()
 				m.commitPopup.commitMessage.Blur()
 				m.commitPopup.active = false
-				return m, tea.Batch(m.handleCommit, m.Refresh())
+				return m, tea.Sequence(m.handleCommit, m.Refresh())
 			case "tab":
 				if m.commitPopup.focus == commitFocusSummary {
 					m.commitPopup.commitSummary.Blur()
@@ -236,7 +236,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.tagPopup.tagName.Blur()
 				m.tagPopup.tagMessage.Blur()
 				m.tagPopup.active = false
-				return m, tea.Batch(m.handleTag, m.Refresh())
+				return m, tea.Sequence(m.handleTag, m.Refresh())
 			case "tab":
 				if m.tagPopup.focus == tagFocusName {
 					m.tagPopup.tagName.Blur()
@@ -319,7 +319,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tickMsg:
-		return m, tea.Batch(m.Refresh(), tickCmd())
+		return m, tea.Sequence(m.Refresh(), tickCmd())
 
 	case filesMsg:
 		m.files = []git.FileStatus(msg)
@@ -713,7 +713,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "P":
 			if m.focus == focusBranch && len(m.branches) > 0 {
 				branch := m.branches[m.idxBranch].Name
-				return m, tea.Batch(func() tea.Msg { return m.handlePush(branch) }, m.Refresh())
+				return m, tea.Sequence(func() tea.Msg { return m.handlePush(branch) }, m.Refresh())
 			}
 
 		case "R":
