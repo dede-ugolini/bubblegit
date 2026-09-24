@@ -623,14 +623,18 @@ func (m *Model) renderBranches() string {
 			// name first and only then wrapping in Width(...).Background(...)
 			// would hit the same nested-reset issue as log/stash - see
 			// there.
-			names = append(names, lipgloss.NewStyle().Width(m.branchWidth).Background(m.theme.Cursor).Render(b.Name))
+			if b.Current {
+				names = append(names, lipgloss.NewStyle().Width(m.branchWidth).Background(m.theme.Cursor).Render(" * "+b.Name))
+				continue
+			}
+			names = append(names, lipgloss.NewStyle().Width(m.branchWidth).Background(m.theme.Cursor).Render("   "+b.Name))
 			continue
 		}
-		name := b.Name
 		if b.Current {
-			name = lipgloss.NewStyle().Foreground(m.theme.Accent).Render(name)
+			names = append(names, lipgloss.NewStyle().Width(m.branchWidth).Foreground(m.theme.Accent).Render(" * "+b.Name))
+			continue
 		}
-		names = append(names, lipgloss.NewStyle().Width(m.branchWidth).Render(name))
+		names = append(names, lipgloss.NewStyle().Width(m.branchWidth).Render("   "+b.Name))
 	}
 
 	// The outer style deliberately has no Width of its own - see the note
