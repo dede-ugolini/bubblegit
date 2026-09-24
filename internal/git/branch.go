@@ -14,6 +14,8 @@ type BranchInfo struct {
 
 // Branches lists local branches, current branch first.
 func Branches(dir string) ([]BranchInfo, error) {
+	mu.RLock()
+	defer mu.RUnlock()
 	cmd := exec.Command("git", "branch", "--format=%(HEAD)"+logFieldSep+"%(refname)"+logFieldSep+"%(refname:short)")
 	cmd.Dir = dir
 	out, err := cmd.Output()
@@ -46,6 +48,8 @@ func Branches(dir string) ([]BranchInfo, error) {
 
 // Checkout switches the working tree to the given branch.
 func Checkout(dir, branch string) error {
+	mu.Lock()
+	defer mu.Unlock()
 	cmd := exec.Command("git", "checkout", branch)
 	cmd.Dir = dir
 	out, err := cmd.CombinedOutput()
@@ -57,6 +61,8 @@ func Checkout(dir, branch string) error {
 
 // CreateBranch create and checks out a new branch off the current HEAD.
 func CreateBranch(dir, branch string) error {
+	mu.Lock()
+	defer mu.Unlock()
 	cmd := exec.Command("git", "checkout", "-b", branch)
 	cmd.Dir = dir
 	out, err := cmd.CombinedOutput()
@@ -69,6 +75,8 @@ func CreateBranch(dir, branch string) error {
 // DeleteBranch removes a local branch. It refuses (like plain `git branch
 // -d`) if the branch has commits not merged elsewhere.
 func DeleteBranch(dir, branch string) error {
+	mu.Lock()
+	defer mu.Unlock()
 	cmd := exec.Command("git", "branch", "-d", branch)
 	cmd.Dir = dir
 	out, err := cmd.CombinedOutput()
@@ -80,6 +88,8 @@ func DeleteBranch(dir, branch string) error {
 
 // RenameBranch rename a branch
 func RenameBranch(dir, oldName, newName string) error {
+	mu.Lock()
+	defer mu.Unlock()
 	cmd := exec.Command("git", "branch", "-m", oldName, newName)
 	cmd.Dir = dir
 	out, err := cmd.CombinedOutput()
@@ -93,6 +103,8 @@ func RenameBranch(dir, oldName, newName string) error {
 // later pull needs no arguments. Errors (no origin remote, rejected
 // non-fast-forward push, etc.) surface as the trimmed git stderr.
 func Push(dir, branch string) error {
+	mu.Lock()
+	defer mu.Unlock()
 	cmd := exec.Command("git", "push", "-u", "origin", branch)
 	cmd.Dir = dir
 	out, err := cmd.CombinedOutput()
