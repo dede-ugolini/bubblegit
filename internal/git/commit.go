@@ -8,6 +8,8 @@ import (
 )
 
 func Commit(dir, message string) error {
+	mu.Lock()
+	defer mu.Unlock()
 	cmd := exec.Command("git", "commit", "-m", message)
 	cmd.Dir = dir
 	out, err := cmd.CombinedOutput()
@@ -18,6 +20,8 @@ func Commit(dir, message string) error {
 }
 
 func Ammend(dir, message string) error {
+	mu.Lock()
+	defer mu.Unlock()
 	cmd := exec.Command("git", "commit", "--amend", "-m", message)
 	cmd.Dir = dir
 	out, err := cmd.CombinedOutput()
@@ -30,6 +34,8 @@ func Ammend(dir, message string) error {
 // DropLastCommit removes the most recent commit (HEAD) from the current
 // branch, discarding its changes. It refuses to drop the only (root) commit.
 func DropLastCommit(dir string) error {
+	mu.Lock()
+	defer mu.Unlock()
 	verify := exec.Command("git", "rev-parse", "--verify", "-q", "HEAD^")
 	verify.Dir = dir
 	if err := verify.Run(); err != nil {
@@ -60,6 +66,8 @@ func DropLastCommit(dir string) error {
 //     the message we already wrote to a temp file, sidestepping the need
 //     to safely quote arbitrary commit-message text into a shell command.
 func RewordCommit(dir, hash, message string) error {
+	mu.Lock()
+	defer mu.Unlock()
 	msgFile, err := os.CreateTemp("", "bubblegit-reword-*.txt")
 	if err != nil {
 		return err
@@ -110,6 +118,8 @@ func RewordCommit(dir, hash, message string) error {
 // does, so GIT_EDITOR=cp overwrites it with our own message - identical
 // mechanism to RewordCommit, no extra step needed.
 func SquashCommits(dir, oldestHash string, count int, message string) error {
+	mu.Lock()
+	defer mu.Unlock()
 	if count < 2 {
 		return fmt.Errorf("need at least 2 commits to squash")
 	}

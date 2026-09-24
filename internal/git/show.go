@@ -7,6 +7,8 @@ import (
 )
 
 func Show(dir, hash string) (string, error) {
+	mu.RLock()
+	defer mu.RUnlock()
 	cmd := exec.Command("git", "show", "--color=always", "--stat", "--patch", hash)
 	cmd.Dir = dir
 	out, err := cmd.CombinedOutput()
@@ -17,6 +19,8 @@ func Show(dir, hash string) (string, error) {
 }
 
 func ShowDelta(dir, path string, sideBySide bool, width int) (string, error) {
+	mu.RLock()
+	defer mu.RUnlock()
 	git := exec.Command("git", "show", "--color=always", "--stat", "--patch", path)
 	git.Dir = dir
 	diff, err := git.Output()

@@ -9,6 +9,8 @@ import (
 // CreateTag adds an annotated tag name at hash. If message is empty the
 // tag name is used as the tag message so git never opens an editor.
 func CreateTag(dir, name, message, hash string) error {
+	mu.Lock()
+	defer mu.Unlock()
 	if message == "" {
 		message = name
 	}
@@ -25,6 +27,8 @@ func CreateTag(dir, name, message, hash string) error {
 // it. Annotated tags are peeled to the commit they reference; lightweight
 // tags use their own object hash.
 func TagsByCommit(dir string) (map[string][]string, error) {
+	mu.RLock()
+	defer mu.RUnlock()
 	format := strings.Join([]string{"%(refname:short)", "%(objectname)", "%(*objectname)"}, logFieldSep)
 	cmd := exec.Command("git", "for-each-ref", "refs/tags", "--format="+format)
 	cmd.Dir = dir

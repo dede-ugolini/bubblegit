@@ -8,6 +8,8 @@ import (
 )
 
 func Diff(dir, path string) (string, error) {
+	mu.RLock()
+	defer mu.RUnlock()
 	cmd := exec.Command("git", "diff", "--color=always", "--", path)
 	cmd.Dir = dir
 	out, err := cmd.CombinedOutput()
@@ -18,6 +20,8 @@ func Diff(dir, path string) (string, error) {
 }
 
 func DiffDelta(dir, path string, sideBySide bool, width int) (string, error) {
+	mu.RLock()
+	defer mu.RUnlock()
 	git := exec.Command("git", "diff", "--no-color", "--", path)
 	git.Dir = dir
 	diff, err := git.Output()
@@ -45,6 +49,8 @@ func DiffDelta(dir, path string, sideBySide bool, width int) (string, error) {
 }
 
 func DiffStaged(dir, path string) (string, error) {
+	mu.RLock()
+	defer mu.RUnlock()
 	cmd := exec.Command("git", "diff", "--staged", "--color=always", "--", path)
 	cmd.Dir = dir
 	out, err := cmd.CombinedOutput()
@@ -55,6 +61,8 @@ func DiffStaged(dir, path string) (string, error) {
 }
 
 func DiffDeltaStaged(dir, path string, sideBySide bool, width int) (string, error) {
+	mu.RLock()
+	defer mu.RUnlock()
 	git := exec.Command("git", "diff", "--staged", "--no-color", "--", path)
 	git.Dir = dir
 	diff, err := git.Output()
@@ -82,6 +90,8 @@ func DiffDeltaStaged(dir, path string, sideBySide bool, width int) (string, erro
 }
 
 func DiffUntracked(dir, path string) (string, error) {
+	mu.RLock()
+	defer mu.RUnlock()
 	cmd := exec.Command("git", "diff", "--no-index", "--color=always", "/dev/null", "--", path)
 	cmd.Dir = dir
 	out, _ := cmd.CombinedOutput()
@@ -89,6 +99,8 @@ func DiffUntracked(dir, path string) (string, error) {
 }
 
 func DiffDeltaUntracked(dir, path string, sideBySide bool, width int) (string, error) {
+	mu.RLock()
+	defer mu.RUnlock()
 	git := exec.Command("git", "diff", "--no-index", "--no-color", "/dev/null", "--", path)
 	git.Dir = dir
 	diff, _ := git.Output()
@@ -113,6 +125,8 @@ func DiffDeltaUntracked(dir, path string, sideBySide bool, width int) (string, e
 }
 
 func DiffBranch(dir string) (string, error) {
+	mu.RLock()
+	defer mu.RUnlock()
 	cmd := exec.Command("git", "diff", "--color=always", "--stat", "--patch")
 	cmd.Dir = dir
 	out, err := cmd.CombinedOutput()
@@ -123,6 +137,8 @@ func DiffBranch(dir string) (string, error) {
 }
 
 func DiffBranchDelta(dir string, sideBySide bool, width int) (string, error) {
+	mu.RLock()
+	defer mu.RUnlock()
 	git := exec.Command("git", "diff", "--color=always", "--stat", "--patch")
 	git.Dir = dir
 	diff, err := git.Output()

@@ -18,6 +18,8 @@ type StashEntry struct {
 
 // Stashes lists the stash entries, most recent first.
 func Stashes(dir string) ([]StashEntry, error) {
+	mu.RLock()
+	defer mu.RUnlock()
 	// %gd must be requested without a --date flag: as soon as one is
 	// present git renders the reflog selector as a date instead of the
 	// numeric "stash@{N}" index. So the timestamp is pulled separately
@@ -58,6 +60,8 @@ func Stashes(dir string) ([]StashEntry, error) {
 // StashPush stashes tracked changes (staged and unstaged), optionally
 // under the given message.
 func StashPush(dir, message string) error {
+	mu.Lock()
+	defer mu.Unlock()
 	args := []string{"stash", "push"}
 	if message != "" {
 		args = append(args, "-m", message)
@@ -74,6 +78,8 @@ func StashPush(dir, message string) error {
 // StashApply applies a stash entry to the working tree, leaving it in the
 // stash list.
 func StashApply(dir, ref string) error {
+	mu.Lock()
+	defer mu.Unlock()
 	cmd := exec.Command("git", "stash", "apply", ref)
 	cmd.Dir = dir
 	out, err := cmd.CombinedOutput()
@@ -85,6 +91,8 @@ func StashApply(dir, ref string) error {
 
 // StashDrop removes a stash entry.
 func StashDrop(dir, ref string) error {
+	mu.Lock()
+	defer mu.Unlock()
 	cmd := exec.Command("git", "stash", "drop", ref)
 	cmd.Dir = dir
 	out, err := cmd.CombinedOutput()
@@ -97,6 +105,8 @@ func StashDrop(dir, ref string) error {
 // StashBranch creates and checks out a new branch from the stash's
 // original commit, applies the stash, and drops it from the list.
 func StashBranch(dir, branch, ref string) error {
+	mu.Lock()
+	defer mu.Unlock()
 	cmd := exec.Command("git", "stash", "branch", branch, ref)
 	cmd.Dir = dir
 	out, err := cmd.CombinedOutput()
@@ -107,6 +117,8 @@ func StashBranch(dir, branch, ref string) error {
 }
 
 func StashPop(dir, ref string) error {
+	mu.Lock()
+	defer mu.Unlock()
 	cmd := exec.Command("git", "stash", "pop", ref)
 	cmd.Dir = dir
 	out, err := cmd.CombinedOutput()
@@ -118,6 +130,8 @@ func StashPop(dir, ref string) error {
 
 // StashClear removes every stash entry.
 func StashClear(dir string) error {
+	mu.Lock()
+	defer mu.Unlock()
 	cmd := exec.Command("git", "stash", "clear")
 	cmd.Dir = dir
 	out, err := cmd.CombinedOutput()
@@ -131,6 +145,8 @@ func StashClear(dir string) error {
 // a stash prints a combined "diff --cc" (it's a merge commit); `stash show
 // -p` is the form that produces a normal unified diff.
 func StashShow(dir, ref string) (string, error) {
+	mu.RLock()
+	defer mu.RUnlock()
 	cmd := exec.Command("git", "stash", "show", "-p", "--color=always", ref)
 	cmd.Dir = dir
 	out, err := cmd.CombinedOutput()
@@ -141,6 +157,8 @@ func StashShow(dir, ref string) (string, error) {
 }
 
 func StashShowDelta(dir, ref string, sideBySide bool, width int) (string, error) {
+	mu.RLock()
+	defer mu.RUnlock()
 	git := exec.Command("git", "stash", "show", "-p", "--no-color", ref)
 	git.Dir = dir
 	diff, err := git.Output()

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
+	"sync"
 )
 
 // field/record separators unlikely to appear in commit metadata.
@@ -13,10 +14,20 @@ const (
 	logRecordSep = "\x1e"
 )
 
+// mu serializes git subprocesses. The TUI dispatches commands from
+// concurrent goroutines (batched refreshes, per-keypress diffs, and
+// mutating actions can all overlap); git itself only tolerates concurrent
+// reads, and two overlapping index/ref writers collide on index.lock or
+// produce inconsistent state. So writes take an exclusive lock while reads
+// share it, keeping the batched parallel refresh fast.
+var mu sync.RWMutex
+
 // TODO: Refactor to avoid always using string(out)
 
 // Status returns the working tree status
 func Status(dir string) ([]FileStatus, error) {
+	mu.RLock()
+	defer mu.RUnlock()
 	cmd := exec.Command(
 		"git",
 		"status",
@@ -71,6 +82,8 @@ func MergeFF(dir, branch string) error {
 // fast-forward is possible), or "squash" (squash all changes into a
 // single commit).
 func Merge(dir, branch, mode string) error {
+	mu.Lock()
+	defer mu.Unlock()
 	var cmd *exec.Cmd
 	switch mode {
 	case "ff":

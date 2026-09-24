@@ -10,6 +10,8 @@ import (
 // none yet or repointing the existing one otherwise - so it works the same
 // the first time a repo gets a remote and to correct one later.
 func SetRemote(dir, url string) error {
+	mu.Lock()
+	defer mu.Unlock()
 	list := exec.Command("git", "remote")
 	list.Dir = dir
 	out, err := list.Output()

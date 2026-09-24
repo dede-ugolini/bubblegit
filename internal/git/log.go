@@ -17,6 +17,8 @@ type LogEntry struct {
 }
 
 func Log(dir, rev string, limit int) ([]LogEntry, error) {
+	mu.RLock()
+	defer mu.RUnlock()
 	format := strings.Join(
 		[]string{"%H", "%h", "%an", "%ad", "%s", "%b"}, logFieldSep,
 	) + logRecordSep

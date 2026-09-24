@@ -17,6 +17,8 @@ type FileStatus struct {
 
 // Add stages the given path
 func Add(dir, path string) error {
+	mu.Lock()
+	defer mu.Unlock()
 	cmd := exec.Command("git", "add", "--", path)
 	cmd.Dir = dir
 	out, err := cmd.CombinedOutput()
@@ -28,6 +30,8 @@ func Add(dir, path string) error {
 
 // AddAll stages all path
 func AddAll(dir string) error {
+	mu.Lock()
+	defer mu.Unlock()
 	cmd := exec.Command("git", "add", "-A")
 	cmd.Dir = dir
 	out, err := cmd.CombinedOutput()
@@ -39,6 +43,8 @@ func AddAll(dir string) error {
 
 // Reset unstages the given path, leaving working tree changes intact.
 func Reset(dir, path string) error {
+	mu.Lock()
+	defer mu.Unlock()
 	cmd := exec.Command("git", "reset", "--", path)
 	cmd.Dir = dir
 	out, err := cmd.CombinedOutput()
@@ -49,6 +55,8 @@ func Reset(dir, path string) error {
 }
 
 func ResetAll(dir string) error {
+	mu.Lock()
+	defer mu.Unlock()
 	cmd := exec.Command("git", "reset")
 	cmd.Dir = dir
 	out, err := cmd.CombinedOutput()
@@ -61,6 +69,8 @@ func ResetAll(dir string) error {
 // Restore reverts the file to its HEAD state, discarding both staged and
 // unstaged changes.
 func Restore(dir, path string) error {
+	mu.Lock()
+	defer mu.Unlock()
 	cmd := exec.Command("git", "restore", "--staged", "--worktree", "--", path)
 	cmd.Dir = dir
 	out, err := cmd.CombinedOutput()
@@ -71,6 +81,8 @@ func Restore(dir, path string) error {
 }
 
 func RestoreUntracked(dir, path string) error {
+	mu.Lock()
+	defer mu.Unlock()
 	cmd := exec.Command("git", "clean", "-fd", path)
 	cmd.Dir = dir
 	out, err := cmd.CombinedOutput()
