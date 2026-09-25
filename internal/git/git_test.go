@@ -794,6 +794,62 @@ func TestTagsByCommit(t *testing.T) {
 	})
 }
 
+func TestBranchesTracking(t *testing.T) {
+	remoteDir := t.TempDir()
+	run(t, remoteDir, "git", "init", "--bare", "remote.git")
+	remote := filepath.Join(remoteDir, "remote.git")
+
+	dir := initRepo(t)
+	main := defaultBranch(t, dir)
+	run(t, dir, "git", "remote", "add", "origin", remote)
+	run(t, dir, "git", "push", "-u", "origin", main)
+	run(t, dir, "git", "checkout", "-b", "feat")
+	run(t, dir, "git", "push", "-u", "origin", "feat")
+	// solo has no real upstream - its config points at a ref that doesn't
+	// exist on the remote, so git reports it as [gone].
+	run(t, dir, "git", "branch", "solo")
+	run(t, dir, "git", "config", "branch.solo.remote", "origin")
+	run(t, dir, "git", "config", "branch.solo.merge", "refs/heads/deleted")
+
+	run(t, dir, "git", "checkout", main)
+	if err := writeFile(dir, "hello.go", "package main\n"); err != nil {
+		t.Fatal(err)
+	}
+	run(t, dir, "git", "add", "hello.go")
+	run(t, dir, "git", "commit", "-m", "ahead commit")
+
+	got, err := Branches(dir)
+	if err != nil {
+		t.Fatalf("Branches() error: %v", err)
+	}
+	byName := map[string]BranchInfo{}
+	for _, b := range got {
+		byName[b.Name] = b
+	}
+
+	cur := byName[main]
+	if !cur.Current {
+		t.Errorf("current branch %q: Current = false", main)
+	}
+	if cur.Ahead != 1 {
+		t.Errorf("%q ahead = %d, want 1", main, cur.Ahead)
+	}
+	if cur.Behind != 0 {
+		t.Errorf("%q behind = %d, want 0", main, cur.Behind)
+	}
+	if cur.Upstream != "origin/"+main {
+		t.Errorf("%q upstream = %q, want origin/%s", main, cur.Upstream, main)
+	}
+
+	if f := byName["feat"]; f.Ahead != 0 || f.Behind != 0 {
+		t.Errorf("feat ahead/behind = %d/%d, want 0/0", f.Ahead, f.Behind)
+	}
+
+	if s := byName["solo"]; !s.Gone {
+		t.Errorf("solo: Gone = false, want true (upstream ref deleted)")
+	}
+}
+
 func TestSetRemote(t *testing.T) {
 	t.Run("add remote when none exists", func(t *testing.T) {
 		dir := initRepo(t)
