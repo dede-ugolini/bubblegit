@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 
+	"bubblegit/internal/git"
+
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 )
@@ -618,23 +620,27 @@ func (m *Model) renderBranches() string {
 	start, end := visibleWindow(len(m.branches), m.branchHeight, m.idxBranch)
 	for i := start; i < end; i++ {
 		b := m.branches[i]
+		row := b.Name
+		if track := branchTrack(b); track != "" {
+			row += " " + track
+		}
 		if m.idxBranch == i && m.focus == focusBranch {
 			// Deliberately plain text here: coloring the current branch's
 			// name first and only then wrapping in Width(...).Background(...)
 			// would hit the same nested-reset issue as log/stash - see
 			// there.
 			if b.Current {
-				names = append(names, lipgloss.NewStyle().Width(m.branchWidth).Background(m.theme.Cursor).Render(" * "+b.Name))
+				names = append(names, lipgloss.NewStyle().Width(m.branchWidth).Background(m.theme.Cursor).Render(" * "+row))
 				continue
 			}
-			names = append(names, lipgloss.NewStyle().Width(m.branchWidth).Background(m.theme.Cursor).Render("   "+b.Name))
+			names = append(names, lipgloss.NewStyle().Width(m.branchWidth).Background(m.theme.Cursor).Render("   "+row))
 			continue
 		}
 		if b.Current {
-			names = append(names, lipgloss.NewStyle().Width(m.branchWidth).Foreground(m.theme.Accent).Render(" * "+b.Name))
+			names = append(names, lipgloss.NewStyle().Width(m.branchWidth).Foreground(m.theme.Accent).Render(" * "+row))
 			continue
 		}
-		names = append(names, lipgloss.NewStyle().Width(m.branchWidth).Render("   "+b.Name))
+		names = append(names, lipgloss.NewStyle().Width(m.branchWidth).Render("   "+row))
 	}
 
 	// The outer style deliberately has no Width of its own - see the note
@@ -656,6 +662,26 @@ func (m *Model) renderBranches() string {
 		Border(lipgloss.NormalBorder(), true).
 		Height(m.branchHeight).
 		Render(strings.Join(names, "\n"))
+}
+
+// branchTrack renders a branch's ahead/behind status relative to its
+// upstream as a compact suffix, e.g. "[ahead 1, behind 2]" or "[gone]".
+// Returns "" for branches that are in sync or have no upstream.
+func branchTrack(b git.BranchInfo) string {
+	var parts []string
+	if b.Ahead > 0 {
+		parts = append(parts, fmt.Sprintf("%d", b.Ahead))
+	}
+	if b.Behind > 0 {
+		parts = append(parts, fmt.Sprintf("%d", b.Behind))
+	}
+	if b.Gone {
+		parts = append(parts, "gone")
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return strings.Join(parts, ", ")
 }
 
 // authorInitials returns an up-to-two-letter uppercase abbreviation for an

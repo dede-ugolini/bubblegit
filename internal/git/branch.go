@@ -3,20 +3,44 @@ package git
 import (
 	"fmt"
 	"os/exec"
+	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 )
 
 type BranchInfo struct {
 	Name    string
 	Current bool
+
+	// Upstream is the remote-tracking branch this branch tracks, e.g.
+	// "origin/main"; empty if it has none.
+	Upstream string
+
+	// Ahead counts local commits not on the upstream; Behind counts the
+	// reverse. Both are zero when in sync or when there is no upstream.
+	Ahead  int
+	Behind int
+
+	// Gone reports an upstream that no longer exists on the remote.
+	Gone bool
 }
 
-// Branches lists local branches, current branch first.
+var (
+	aheadRe  = regexp.MustCompile(`ahead (\d+)`)
+	behindRe = regexp.MustCompile(`behind (\d+)`)
+)
+
+// Branches lists local branches, current branch first, each with the
+// ahead/behind counts relative to its upstream as reported by git.
 func Branches(dir string) ([]BranchInfo, error) {
 	mu.RLock()
 	defer mu.RUnlock()
-	cmd := exec.Command("git", "branch", "--format=%(HEAD)"+logFieldSep+"%(refname)"+logFieldSep+"%(refname:short)")
+	cmd := exec.Command(
+		"git",
+		"branch",
+		"--format=%(HEAD)"+logFieldSep+"%(refname)"+logFieldSep+"%(refname:short)"+logFieldSep+"%(upstream:short)"+logFieldSep+"%(upstream:track)",
+	)
 	cmd.Dir = dir
 	out, err := cmd.Output()
 	if err != nil {
@@ -28,8 +52,8 @@ func Branches(dir string) ([]BranchInfo, error) {
 		if line == "" {
 			continue
 		}
-		f := strings.SplitN(line, logFieldSep, 3)
-		if len(f) != 3 {
+		f := strings.SplitN(line, logFieldSep, 5)
+		if len(f) != 5 {
 			continue
 		}
 		// In detached-HEAD state, git lists a synthetic
@@ -38,7 +62,17 @@ func Branches(dir string) ([]BranchInfo, error) {
 		if !strings.HasPrefix(f[1], "refs/heads/") {
 			continue
 		}
-		branches = append(branches, BranchInfo{Name: f[2], Current: f[0] == "*"})
+		b := BranchInfo{Name: f[2], Current: f[0] == "*", Upstream: f[3]}
+		if track := f[4]; track != "" {
+			b.Gone = strings.Contains(track, "gone")
+			if m := aheadRe.FindStringSubmatch(track); m != nil {
+				b.Ahead, _ = strconv.Atoi(m[1])
+			}
+			if m := behindRe.FindStringSubmatch(track); m != nil {
+				b.Behind, _ = strconv.Atoi(m[1])
+			}
+		}
+		branches = append(branches, b)
 	}
 	sort.SliceStable(branches, func(i, j int) bool {
 		return branches[i].Current && !branches[j].Current
