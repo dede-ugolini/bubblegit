@@ -757,6 +757,7 @@ func (m *Model) renderLog() string {
 	start, end := visibleWindow(len(m.log), m.logHeight, m.idxLog)
 	dateColor := lipgloss.NewStyle().Foreground(m.theme.Date)
 	shortHashColor := lipgloss.NewStyle().Foreground(m.theme.Hash)
+	aheadColor := lipgloss.NewStyle().Foreground(m.theme.Ahead)
 	tagColor := lipgloss.NewStyle().Foreground(m.theme.Accent)
 	authorColor := lipgloss.NewStyle().Foreground(m.theme.Author)
 
@@ -789,7 +790,11 @@ func (m *Model) renderLog() string {
 			continue
 		}
 		date := dateColor.Render(l.Date)
-		shortHash := shortHashColor.Render(l.ShortHash)
+		hashStyle := shortHashColor
+		if m.ahead[l.Hash] {
+			hashStyle = aheadColor
+		}
+		shortHash := hashStyle.Render(l.ShortHash)
 		line := shortHash + " " + date
 		if tagStr != "" {
 			line += " " + tagColor.Render(tagStr)

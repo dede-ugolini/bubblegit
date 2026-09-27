@@ -63,3 +63,24 @@ func Log(dir, rev string, limit int) ([]LogEntry, error) {
 	}
 	return entries, nil
 }
+
+// AheadHashes returns the full hashes of the commits reachable from HEAD but
+// not from its upstream - what a push would publish. The set is empty for a
+// branch with no upstream, a missing upstream, or nothing ahead.
+func AheadHashes(dir string) (map[string]bool, error) {
+	mu.RLock()
+	defer mu.RUnlock()
+	cmd := exec.Command("git", "log", "@{upstream}..HEAD", "--pretty=%H")
+	cmd.Dir = dir
+	out, err := cmd.Output()
+	if err != nil {
+		// No upstream to compare against (detached HEAD, untracked branch,
+		// gone upstream) means nothing is ahead.
+		return nil, nil
+	}
+	hashes := make(map[string]bool)
+	for _, h := range strings.Fields(string(out)) {
+		hashes[h] = true
+	}
+	return hashes, nil
+}

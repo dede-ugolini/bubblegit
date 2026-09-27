@@ -334,6 +334,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.log = []git.LogEntry(msg)
 		return m, nil
 
+	case aheadMsg:
+		m.ahead = map[string]bool(msg)
+		return m, nil
+
 	case tagsMsg:
 		m.tags = map[string][]string(msg)
 		return m, nil
