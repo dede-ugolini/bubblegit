@@ -42,6 +42,10 @@ type Theme struct {
 	// panels.
 	Hash color.Color
 
+	// Ahead colors the short hash of a log entry whose commit the current
+	// branch carries but its upstream doesn't (push would publish it).
+	Ahead color.Color
+
 	// Author colors the author initials shown in the log panel.
 	Author color.Color
 }
@@ -61,6 +65,7 @@ var themeSystem = Theme{
 	Muted:       lipgloss.Color("240"),
 	Date:        lipgloss.ANSIColor(12),
 	Hash:        lipgloss.ANSIColor(14),
+	Ahead:       lipgloss.ANSIColor(lipgloss.Red),
 	Author:      lipgloss.ANSIColor(13),
 }
 
@@ -78,6 +83,7 @@ var themeNord = Theme{
 	Muted:       lipgloss.Color("#4C566A"), // nord3  - polar night, gray
 	Date:        lipgloss.Color("#81A1C1"), // nord9  - frost, blue
 	Hash:        lipgloss.Color("#8FBCBB"), // nord7  - frost, teal
+	Ahead:       lipgloss.Color("#A3BE8C"), // nord14 - aurora, green
 }
 
 // themeOrder is the cycling order for the "t" keybind; themesByName must have

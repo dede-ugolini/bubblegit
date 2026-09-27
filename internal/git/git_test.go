@@ -850,6 +850,57 @@ func TestBranchesTracking(t *testing.T) {
 	}
 }
 
+func TestAheadHashes(t *testing.T) {
+	remoteDir := t.TempDir()
+	run(t, remoteDir, "git", "init", "--bare", "remote.git")
+	remote := filepath.Join(remoteDir, "remote.git")
+
+	dir := initRepo(t)
+	main := defaultBranch(t, dir)
+	run(t, dir, "git", "remote", "add", "origin", remote)
+	run(t, dir, "git", "push", "-u", "origin", main)
+
+	if err := writeFile(dir, "hello.go", "package main\n"); err != nil {
+		t.Fatal(err)
+	}
+	run(t, dir, "git", "add", "hello.go")
+	run(t, dir, "git", "commit", "-m", "ahead commit")
+	aheadHash := revParse(t, dir, "HEAD")
+
+	got, err := AheadHashes(dir)
+	if err != nil {
+		t.Fatalf("AheadHashes() error: %v", err)
+	}
+	if !got[aheadHash] {
+		t.Errorf("AheadHashes() = %v, want it to contain %s", got, aheadHash)
+	}
+	if len(got) != 1 {
+		t.Errorf("AheadHashes() has %d entries, want 1", len(got))
+	}
+
+	// An up-to-date branch (pushed, so never ahead) reports nothing.
+	run(t, dir, "git", "checkout", "-b", "sync")
+	run(t, dir, "git", "push", "-u", "origin", "sync")
+	got, err = AheadHashes(dir)
+	if err != nil {
+		t.Fatalf("AheadHashes() (sync) error: %v", err)
+	}
+	if len(got) != 0 {
+		t.Errorf("AheadHashes() (sync) = %v, want empty", got)
+	}
+
+	// A branch with no upstream at all also reports nothing.
+	run(t, dir, "git", "checkout", "-b", "no-upstream")
+	run(t, dir, "git", "commit", "--allow-empty", "-m", "local only")
+	got, err = AheadHashes(dir)
+	if err != nil {
+		t.Fatalf("AheadHashes() (no-upstream) error: %v", err)
+	}
+	if len(got) != 0 {
+		t.Errorf("AheadHashes() (no-upstream) = %v, want empty", got)
+	}
+}
+
 func TestSetRemote(t *testing.T) {
 	t.Run("add remote when none exists", func(t *testing.T) {
 		dir := initRepo(t)
