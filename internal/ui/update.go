@@ -39,6 +39,28 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	if m.initRepoConfirm {
+		if key, ok := msg.(tea.KeyMsg); ok {
+			switch key.String() {
+			case "y", "enter":
+				m.initRepoConfirm = false
+				m.inputPopup.action = inputActionInitRepo
+				m.inputPopup.title = "Branch name? (leave empty for git's default)"
+				m.inputPopup.input.SetWidth(m.width / 3)
+				m.inputPopup.input.CharLimit = 100
+				m.inputPopup.input.SetValue("")
+				m.inputPopup.input.Prompt = "branch> "
+				m.inputPopup.input.Placeholder = "branch name (optional)"
+				m.inputPopup.input.Focus()
+				m.inputPopup.active = true
+				return m, textinput.Blink
+			case "n", "esc":
+				return m, tea.Quit
+			}
+		}
+		return m, nil
+	}
+
 	if m.stashClearConfirm {
 		if key, ok := msg.(tea.KeyMsg); ok {
 			switch key.String() {
@@ -299,9 +321,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						return m, nil
 					}
 					return m, m.handleSetRemote
+				case inputActionInitRepo:
+					// Empty branch name falls back to git's default.
+					return m, func() tea.Msg { return m.handleInitRepo(value) }
 				}
 				return m, nil
 			case "esc":
+				if m.inputPopup.action == inputActionInitRepo {
+					return m, tea.Quit
+				}
 				m.inputPopup.input.Blur()
 				m.inputPopup.active = false
 				return m, nil
@@ -318,7 +346,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.err = msg.err
 		return m, nil
 
+	case notRepoMsg:
+		m.inRepo = false
+		m.initRepoConfirm = true
+		return m, nil
+
+	case repoReadyMsg:
+		m.inRepo = true
+		return m, m.Refresh()
+
 	case tickMsg:
+		// While no repository exists yet (still asking to create one or
+		// entering the branch name) the git commands would all fail, so
+		// keep refreshing on the timer alone.
+		if !m.inRepo {
+			return m, tickCmd()
+		}
 		return m, tea.Sequence(m.Refresh(), tickCmd())
 
 	case filesMsg:
@@ -1022,6 +1065,13 @@ func (m *Model) handleCreateBranch() tea.Msg {
 		return errMsg{err}
 	}
 	return branchesMsg(branches)
+}
+
+func (m *Model) handleInitRepo(branch string) tea.Msg {
+	if err := git.Init(m.dir, branch); err != nil {
+		return errMsg{err}
+	}
+	return repoReadyMsg{}
 }
 
 func (m *Model) handleToggleStage() tea.Msg {

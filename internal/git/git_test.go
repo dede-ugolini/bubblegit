@@ -113,6 +113,70 @@ func defaultBranch(t *testing.T, dir string) string {
 	return strings.TrimSpace(string(out))
 }
 
+func TestIsRepo(t *testing.T) {
+	t.Run("within a repo", func(t *testing.T) {
+		dir := initRepo(t)
+		if !IsRepo(dir) {
+			t.Fatal("IsRepo() = false, want true for a repo root")
+		}
+	})
+
+	t.Run("subdirectory of a repo", func(t *testing.T) {
+		dir := initRepo(t)
+		sub := filepath.Join(dir, "sub")
+		if err := os.MkdirAll(sub, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if !IsRepo(sub) {
+			t.Fatal("IsRepo() = false, want true for a repo subdirectory")
+		}
+	})
+
+	t.Run("not a repo", func(t *testing.T) {
+		if IsRepo(t.TempDir()) {
+			t.Fatal("IsRepo() = true, want false outside a repository")
+		}
+	})
+}
+
+func TestInit(t *testing.T) {
+	headBranch := func(dir string) string {
+		cmd := exec.Command("git", "symbolic-ref", "--short", "HEAD")
+		cmd.Dir = dir
+		out, err := cmd.Output()
+		if err != nil {
+			t.Fatalf("failed to get HEAD branch: %v", err)
+		}
+		return strings.TrimSpace(string(out))
+	}
+
+	t.Run("custom branch", func(t *testing.T) {
+		dir := t.TempDir()
+		if err := Init(dir, "feat"); err != nil {
+			t.Fatalf("Init() error: %v", err)
+		}
+		if !IsRepo(dir) {
+			t.Fatal("Init() did not create a repository")
+		}
+		if got := headBranch(dir); got != "feat" {
+			t.Fatalf("HEAD branch = %q, want %q", got, "feat")
+		}
+	})
+
+	t.Run("git default branch", func(t *testing.T) {
+		dir := t.TempDir()
+		if err := Init(dir, ""); err != nil {
+			t.Fatalf("Init() error: %v", err)
+		}
+		if !IsRepo(dir) {
+			t.Fatal("Init() did not create a repository")
+		}
+		if got := headBranch(dir); got == "" {
+			t.Fatal("Init() left no branch checked out")
+		}
+	})
+}
+
 func TestStatusIntegration(t *testing.T) {
 	t.Run("clean repo", func(t *testing.T) {
 		dir := initRepo(t)

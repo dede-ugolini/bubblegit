@@ -1,5 +1,9 @@
 # Git operations
 
+## Repository
+
+* [x] Create repository at startup when not in one
+
 ## Files
 
 * [ ] Restore even if the file is staged
