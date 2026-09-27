@@ -113,6 +113,25 @@ func (m Model) View() tea.View {
 		return tea.NewView("Loading...")
 	}
 
+	if m.initRepoConfirm {
+		popupWidth := m.width / 3
+		popupHeight := m.height / 4
+
+		popup := lipgloss.NewLayer(m.renderInitRepoConfirmPopup()).
+			X((m.width - popupWidth) / 2).
+			Y((m.height - popupHeight) / 2).
+			Z(1)
+
+		base := lipgloss.NewLayer(m.renderNormalView()).
+			Z(0)
+
+		c := lipgloss.NewCompositor(base, popup)
+		v := tea.NewView(c.Render())
+		v.AltScreen = true
+		v.MouseMode = tea.MouseModeCellMotion
+		return v
+	}
+
 	if m.commitPopup.active {
 		popupWidth := m.width / 4
 		popupHeight := m.height / 4
@@ -345,6 +364,17 @@ func (m Model) View() tea.View {
 	v.AltScreen = true
 	v.MouseMode = tea.MouseModeCellMotion
 	return v
+}
+
+func (m *Model) renderInitRepoConfirmPopup() string {
+	help := lipgloss.NewStyle().Foreground(m.theme.Muted).
+		Render("y/enter create · n/esc quit")
+
+	return lipgloss.NewStyle().
+		Width(m.width / 3).
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(m.theme.FocusBorder).
+		Render("Not a git repository. Create a new git repository?\n\n" + help)
 }
 
 func (m *Model) renderStashClearConfirmPopup() string {
