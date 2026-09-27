@@ -31,6 +31,12 @@ type (
 	diffMsg     struct{ diff string }
 	errMsg      struct{ err error }
 	tickMsg     struct{}
+
+	// notRepoMsg reports that the working directory is not a git
+	// repository; repoReadyMsg that it is (or has just become one) and the
+	// panels should refresh.
+	notRepoMsg   struct{}
+	repoReadyMsg struct{}
 )
 
 const (
@@ -113,6 +119,7 @@ const (
 	inputActionRenameBranch
 	inputActionPushStash
 	inputActionSetRemote
+	inputActionInitRepo
 )
 
 type inputPopup struct {
@@ -246,6 +253,12 @@ type Model struct {
 
 	ready    bool
 	quitting bool
+
+	// initRepoConfirm is true while asking whether to git init when the
+	// working directory isn't a repository; inRepo is false until one exists
+	// (it gates the tick refresh to keep git errors off the screen).
+	initRepoConfirm bool
+	inRepo          bool
 }
 
 func NewModel(dir string) Model {
@@ -273,7 +286,15 @@ func NewModel(dir string) Model {
 }
 
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(m.Refresh(), tickCmd())
+	return tea.Batch(
+		func() tea.Msg {
+			if git.IsRepo(m.dir) {
+				return repoReadyMsg{}
+			}
+			return notRepoMsg{}
+		},
+		tickCmd(),
+	)
 }
 
 func tickCmd() tea.Cmd {
