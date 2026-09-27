@@ -2,6 +2,8 @@ package ui
 
 import (
 	"fmt"
+	"image/color"
+	"path/filepath"
 	"strings"
 
 	"bubblegit/internal/git"
@@ -544,6 +546,17 @@ func (m *Model) renderDiff() string {
 		Render(m.diff.View())
 }
 
+type fileIcon struct {
+	r rune
+	c color.Color
+}
+
+var extIcons = map[string]fileIcon{
+	".c":  {'\ue61e', lipgloss.Color("#4488EE")}, //  - blue
+	".go": {'\ue627', lipgloss.Color("#00ADD8")}, //  - blue (official Go blue)
+	".js": {'\ue74e', lipgloss.Color("#F7DF1E")}, //  - yellow (JS logo yellow)
+}
+
 func (m *Model) renderFiles() string {
 	if m.filesHeight <= 0 || m.filesWidth <= 0 {
 		return ""
@@ -560,12 +573,20 @@ func (m *Model) renderFiles() string {
 		worktree := string(f.Worktree)
 		path := f.Path
 
+		ext := strings.ToLower(filepath.Ext(f.Path))
+		var icon string
+		fileIcon, hasIcon := extIcons[ext]
+		if hasIcon {
+			icon = string(fileIcon.r)
+		}
+
 		if i == m.idxFiles && m.focus == focusStag {
 			// Deliberately plain text here: coloring stag/worktree/path
 			// individually first and only then wrapping the joined line in
 			// Width(...).Background(...) would hit the same nested-reset
-			// issue as log/stash - see there.
-			s = append(s, lipgloss.NewStyle().Width(m.filesWidth).Background(m.theme.Accent).Render(stag+worktree+" "+path))
+			// issue as log/stash - see there. The icon is therefore left
+			// uncolored as well - its ANSI reset would wipe the highlight.
+			s = append(s, lipgloss.NewStyle().Width(m.filesWidth).Background(m.theme.Accent).Render(stag+worktree+" "+icon+" "+path))
 			continue
 		}
 
@@ -587,7 +608,10 @@ func (m *Model) renderFiles() string {
 			worktree = red.Render(worktree)
 		}
 
-		s = append(s, lipgloss.NewStyle().Width(m.filesWidth).Render(stag+worktree+" "+path))
+		if hasIcon {
+			icon = lipgloss.NewStyle().Foreground(fileIcon.c).Render(icon)
+		}
+		s = append(s, lipgloss.NewStyle().Width(m.filesWidth).Render(stag+worktree+" "+icon+" "+path))
 	}
 
 	// The outer style deliberately has no Width of its own - see the note
