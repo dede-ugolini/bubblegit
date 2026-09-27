@@ -25,6 +25,7 @@ type (
 	filesMsg    []git.FileStatus
 	branchesMsg []git.BranchInfo
 	logMsg      []git.LogEntry
+	aheadMsg    map[string]bool
 	tagsMsg     map[string][]string
 	stashesMsg  []git.StashEntry
 	diffMsg     struct{ diff string }
@@ -165,6 +166,10 @@ type Model struct {
 	logHeight int
 	logWidth  int
 
+	// ahead is the set of log hashes the current branch carries but its
+	// upstream doesn't; their short hashes render in theme.Ahead.
+	ahead map[string]bool
+
 	tags map[string][]string
 
 	// squashMarking is true while the user is marking a range of commits in
@@ -299,6 +304,13 @@ func (m Model) Refresh() tea.Cmd {
 				return errMsg{err}
 			}
 			return logMsg(log)
+		},
+		func() tea.Msg {
+			ahead, err := git.AheadHashes(m.dir)
+			if err != nil {
+				return errMsg{err}
+			}
+			return aheadMsg(ahead)
 		},
 		func() tea.Msg {
 			tags, err := git.TagsByCommit(m.dir)
