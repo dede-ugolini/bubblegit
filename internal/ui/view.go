@@ -59,7 +59,7 @@ func (m Model) panelAt(x, y int) (target, row int, ok bool) {
 		idx, count    int
 	}
 	panels := []listPanel{
-		{focusStag, m.filesHeight, m.filesWidth, m.idxFiles, len(m.files)},
+		{focusStag, m.filesHeight, m.filesWidth, m.idxFiles, len(m.treeRows)},
 		{focusBranch, m.branchHeight, m.branchWidth, m.idxBranch, len(m.branches)},
 		{focusLog, m.logHeight, m.logWidth, m.idxLog, len(m.log)},
 		{focusStash, m.stashHeight, m.stashWidth, m.idxStash, len(m.stashes)},
@@ -619,13 +619,34 @@ func (m *Model) renderFiles() string {
 	red := lipgloss.NewStyle().Foreground(m.theme.Removed)
 	green := lipgloss.NewStyle().Foreground(m.theme.Added)
 	yellow := lipgloss.NewStyle().Foreground(m.theme.Conflict)
+	dirStyle := lipgloss.NewStyle().Foreground(m.theme.Accent)
 
-	start, end := visibleWindow(len(m.files), m.filesHeight, m.idxFiles)
+	start, end := visibleWindow(len(m.treeRows), m.filesHeight, m.idxFiles)
 	for i := start; i < end; i++ {
-		f := m.files[i]
+		row := m.treeRows[i]
+		selected := i == m.idxFiles && m.focus == focusStag
+
+		if row.isDir {
+			glyph := "▾"
+			if m.collapsed[row.dir] {
+				glyph = "▸"
+			}
+			label := strings.Repeat("  ", row.depth) + glyph + " " + row.name + "/"
+			if selected {
+				// Deliberately plain text here: coloring the dir name first
+				// and only then wrapping in Width(...).Background(...) would
+				// hit the same nested-reset issue as the file rows below.
+				s = append(s, lipgloss.NewStyle().Width(m.filesWidth).Background(m.theme.Accent).Render(label))
+				continue
+			}
+			s = append(s, lipgloss.NewStyle().Width(m.filesWidth).Render(dirStyle.Render(label)))
+			continue
+		}
+
+		f := m.files[row.fileIdx]
 		stag := string(f.Index)
 		worktree := string(f.Worktree)
-		path := f.Path
+		path := row.name
 
 		ext := strings.ToLower(filepath.Ext(f.Path))
 		var icon string
@@ -634,13 +655,17 @@ func (m *Model) renderFiles() string {
 			icon = string(fileIcon.r)
 		}
 
-		if i == m.idxFiles && m.focus == focusStag {
+		// The two-space slot keeps files aligned with the directory glyph
+		// column of their ancestors.
+		indent := strings.Repeat("  ", row.depth) + "  "
+
+		if selected {
 			// Deliberately plain text here: coloring stag/worktree/path
 			// individually first and only then wrapping the joined line in
 			// Width(...).Background(...) would hit the same nested-reset
 			// issue as log/stash - see there. The icon is therefore left
 			// uncolored as well - its ANSI reset would wipe the highlight.
-			s = append(s, lipgloss.NewStyle().Width(m.filesWidth).Background(m.theme.Accent).Render(stag+worktree+" "+icon+" "+path))
+			s = append(s, lipgloss.NewStyle().Width(m.filesWidth).Background(m.theme.Accent).Render(indent+stag+worktree+" "+icon+" "+path))
 			continue
 		}
 
@@ -665,7 +690,7 @@ func (m *Model) renderFiles() string {
 		if hasIcon {
 			icon = lipgloss.NewStyle().Foreground(fileIcon.c).Render(icon)
 		}
-		s = append(s, lipgloss.NewStyle().Width(m.filesWidth).Render(stag+worktree+" "+icon+" "+path))
+		s = append(s, lipgloss.NewStyle().Width(m.filesWidth).Render(indent+stag+worktree+" "+icon+" "+path))
 	}
 
 	// The outer style deliberately has no Width of its own - see the note

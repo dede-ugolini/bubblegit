@@ -148,6 +148,13 @@ type Model struct {
 	filesHeight int
 	filesWidth  int
 
+	// treeRows is the flattened file tree (directories interspersed with
+	// files) the files panel renders; idxFiles indexes it rather than files.
+	// collapsed tracks which directory paths (repo-relative) are collapsed,
+	// so directories are expanded by default.
+	treeRows  []fileRow
+	collapsed map[string]bool
+
 	branches     []git.BranchInfo
 	idxBranch    int
 	branchHeight int
@@ -256,6 +263,7 @@ func NewModel(dir string) Model {
 		themeName: themeOrder[0],
 		theme:     themesByName[themeOrder[0]],
 		useDelta:  true,
+		collapsed: make(map[string]bool),
 	}
 }
 

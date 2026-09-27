@@ -323,6 +323,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case filesMsg:
 		m.files = []git.FileStatus(msg)
+		m.rebuildFileTree()
 		return m, nil
 
 	case branchesMsg:
@@ -445,9 +446,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.deleteBranchName = m.branches[m.idxBranch].Name
 			}
 			// Restore file
-			if m.focus == focusStag && len(m.files) > 0 {
-				m.restoreFileConfirm = true
-				m.restoreFilePath = m.files[m.idxFiles].Path
+			if m.focus == focusStag {
+				if idx, ok := m.selectedFile(); ok {
+					m.restoreFileConfirm = true
+					m.restoreFilePath = m.files[idx].Path
+				}
 			}
 			// Drop stash
 			if m.focus == focusStash && len(m.stashes) > 0 {
@@ -528,6 +531,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		case "enter":
+			// Expand/collapse file tree directory
+			if m.focus == focusStag && len(m.treeRows) > 0 && m.treeRows[m.idxFiles].isDir {
+				dir := m.treeRows[m.idxFiles].dir
+				if m.collapsed[dir] {
+					delete(m.collapsed, dir)
+				} else {
+					m.collapsed[dir] = true
+				}
+				m.rebuildFileTree()
+			}
 			// Checkout Branch
 			if m.focus == focusBranch && len(m.branches) > 0 {
 				return m, m.handleCheckoutBranch
@@ -538,8 +551,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "space":
 			// stage/unstage file
-			if m.focus == focusStag && len(m.files) > 0 {
-				return m, m.handleToggleStage
+			if m.focus == focusStag {
+				if _, ok := m.selectedFile(); ok {
+					return m, m.handleToggleStage
+				}
 			}
 		case "a":
 			// stage/unstage all
@@ -757,14 +772,15 @@ func (m Model) showDiff() tea.Cmd {
 	return func() tea.Msg {
 		switch m.focus {
 		case focusStag:
-			if len(m.files) <= 0 {
+			idx, ok := m.selectedFile()
+			if !ok {
 				return diffMsg{}
 			}
 			var (
 				diff string
 				err  error
 			)
-			file := m.files[m.idxFiles]
+			file := m.files[idx]
 			// Untracked() is also true for Unstaged() (an untracked file has
 			// no staged changes, so its worktree side is by definition
 			// unstaged) and a partially-staged file satisfies both Staged()
@@ -772,21 +788,21 @@ func (m Model) showDiff() tea.Cmd {
 			// priority order, so exactly one diff is computed per file.
 			if file.Staged() {
 				if m.useDelta {
-					diff, err = git.DiffDeltaStaged(m.dir, m.files[m.idxFiles].Path, m.panelFullScreen, m.diff.Width())
+					diff, err = git.DiffDeltaStaged(m.dir, file.Path, m.panelFullScreen, m.diff.Width())
 				} else {
-					diff, err = git.DiffStaged(m.dir, m.files[m.idxFiles].Path)
+					diff, err = git.DiffStaged(m.dir, file.Path)
 				}
 			} else if file.Untracked() {
 				if m.useDelta {
-					diff, err = git.DiffDeltaUntracked(m.dir, m.files[m.idxFiles].Path, m.panelFullScreen, m.diff.Width())
+					diff, err = git.DiffDeltaUntracked(m.dir, file.Path, m.panelFullScreen, m.diff.Width())
 				} else {
-					diff, err = git.DiffUntracked(m.dir, m.files[m.idxFiles].Path)
+					diff, err = git.DiffUntracked(m.dir, file.Path)
 				}
 			} else if file.Unstaged() {
 				if m.useDelta {
-					diff, err = git.DiffDelta(m.dir, m.files[m.idxFiles].Path, m.panelFullScreen, m.diff.Width())
+					diff, err = git.DiffDelta(m.dir, file.Path, m.panelFullScreen, m.diff.Width())
 				} else {
-					diff, err = git.Diff(m.dir, m.files[m.idxFiles].Path)
+					diff, err = git.Diff(m.dir, file.Path)
 				}
 			}
 
@@ -864,13 +880,17 @@ func (m *Model) handleDeleteBranch() tea.Msg {
 }
 
 func (m *Model) handleRestoreFile() tea.Msg {
-	if m.files[m.idxFiles].Untracked() {
-		err := git.RestoreUntracked(m.dir, m.files[m.idxFiles].Path)
+	idx, ok := m.selectedFile()
+	if !ok {
+		return nil
+	}
+	if m.files[idx].Untracked() {
+		err := git.RestoreUntracked(m.dir, m.files[idx].Path)
 		if err != nil {
 			return errMsg{err}
 		}
 	} else {
-		err := git.Restore(m.dir, m.files[m.idxFiles].Path)
+		err := git.Restore(m.dir, m.files[idx].Path)
 		if err != nil {
 			return errMsg{err}
 		}
@@ -1001,11 +1021,15 @@ func (m *Model) handleCreateBranch() tea.Msg {
 }
 
 func (m *Model) handleToggleStage() tea.Msg {
-	if m.files[m.idxFiles].Staged() {
-		if err := git.Reset(m.dir, m.files[m.idxFiles].Path); err != nil {
+	idx, ok := m.selectedFile()
+	if !ok {
+		return nil
+	}
+	if m.files[idx].Staged() {
+		if err := git.Reset(m.dir, m.files[idx].Path); err != nil {
 			return errMsg{err}
 		}
-	} else if err := git.Add(m.dir, m.files[m.idxFiles].Path); err != nil {
+	} else if err := git.Add(m.dir, m.files[idx].Path); err != nil {
 		return errMsg{err}
 	}
 	files, err := git.Status(m.dir)
@@ -1230,8 +1254,8 @@ func (m *Model) moveFile(delta int) {
 		m.idxFiles = 0
 	}
 
-	if m.idxFiles >= len(m.files) {
-		m.idxFiles = len(m.files) - 1
+	if m.idxFiles >= len(m.treeRows) {
+		m.idxFiles = len(m.treeRows) - 1
 	}
 }
 
