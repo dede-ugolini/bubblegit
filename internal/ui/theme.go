@@ -84,6 +84,7 @@ var themeNord = Theme{
 	Date:        lipgloss.Color("#81A1C1"), // nord9  - frost, blue
 	Hash:        lipgloss.Color("#8FBCBB"), // nord7  - frost, teal
 	Ahead:       lipgloss.Color("#A3BE8C"), // nord14 - aurora, green
+	Author:      lipgloss.Color("#B48EAD"), // nord15 - frost, purple
 }
 
 // themeOrder is the cycling order for the "t" keybind; themesByName must have

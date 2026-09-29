@@ -139,7 +139,7 @@ func DiffBranch(dir string) (string, error) {
 func DiffBranchDelta(dir string, sideBySide bool, width int) (string, error) {
 	mu.RLock()
 	defer mu.RUnlock()
-	git := exec.Command("git", "diff", "--color=always", "--stat", "--patch")
+	git := exec.Command("git", "diff", "--no-color", "--stat", "--patch")
 	git.Dir = dir
 	diff, err := git.Output()
 	if err != nil {
