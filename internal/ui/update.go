@@ -10,7 +10,14 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
-func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+// Update handles a message and returns the updated model.
+//
+// Model is used through a pointer throughout, and that is load-bearing:
+// commands run after Update returns, so a model captured in a tea.Cmd is
+// only the live one if every method shares the same pointer. With a value
+// receiver a closure would mutate a copy that is already gone by the time
+// it runs, and the change would be silently dropped.
+func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if m.squashMarking {
 		if key, ok := msg.(tea.KeyMsg); ok {
 			switch key.String() {
@@ -40,10 +47,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	if m.confirm.active {
-		// Settle the prompt before returning, since Go doesn't order the
-		// copy of m against the call below.
-		cmd := m.updateConfirm(msg)
-		return m, cmd
+		return m, m.updateConfirm(msg)
 	}
 
 	if m.mergePopup.active {
@@ -241,21 +245,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Confirming doesn't init directly - it asks for the branch
 			// name first, so this opens the input popup rather than
 			// running a git command.
-			onYes: func(mm *Model) tea.Cmd {
-				mm.inputPopup.action = inputActionInitRepo
-				mm.inputPopup.title = "Branch name? (leave empty for git's default)"
-				mm.inputPopup.input.SetWidth(mm.width / 3)
-				mm.inputPopup.input.CharLimit = 100
-				mm.inputPopup.input.SetValue("")
-				mm.inputPopup.input.Prompt = "branch> "
-				mm.inputPopup.input.Placeholder = "branch name (optional)"
-				mm.inputPopup.input.Focus()
-				mm.inputPopup.active = true
+			onYes: func() tea.Msg {
+				m.inputPopup.action = inputActionInitRepo
+				m.inputPopup.title = "Branch name? (leave empty for git's default)"
+				m.inputPopup.input.SetWidth(m.width / 3)
+				m.inputPopup.input.CharLimit = 100
+				m.inputPopup.input.SetValue("")
+				m.inputPopup.input.Prompt = "branch> "
+				m.inputPopup.input.Placeholder = "branch name (optional)"
+				m.inputPopup.input.Focus()
+				m.inputPopup.active = true
 				return textinput.Blink
 			},
 			// Declining leaves nothing to show, so quit rather than
 			// sitting on an empty window.
-			onNo: func(*Model) tea.Cmd { return tea.Quit },
+			onNo: tea.Quit,
 		})
 		return m, nil
 
@@ -399,7 +403,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.focus == focusBranch && len(m.branches) > 0 {
 				m.ask(confirm{
 					title: "Delete branch '" + m.branches[m.idxBranch].Name + "'?",
-					onYes: deferred(m.handleDeleteBranch),
+					onYes: m.handleDeleteBranch,
 				})
 			}
 			// Restore file
@@ -407,7 +411,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if idx, ok := m.selectedFile(); ok {
 					m.ask(confirm{
 						title: "Restore '" + m.files[idx].Path + "'?",
-						onYes: deferred(m.handleRestoreFile),
+						onYes: m.handleRestoreFile,
 					})
 				}
 			}
@@ -415,7 +419,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.focus == focusStash && len(m.stashes) > 0 {
 				m.ask(confirm{
 					title: "Drop stash '" + m.stashes[m.idxStash].Message + "'?",
-					onYes: deferred(m.handleDropStash),
+					onYes: m.handleDropStash,
 				})
 			}
 			// Drop last commit
@@ -423,7 +427,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.ask(confirm{
 					title:  "Drop last commit?",
 					detail: m.log[0].Subject,
-					onYes:  deferred(m.handleDropCommit),
+					onYes:  m.handleDropCommit,
 				})
 			}
 
@@ -432,7 +436,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.focus == focusStash && len(m.stashes) > 0 {
 				m.ask(confirm{
 					title: "Remove all stash entries?",
-					onYes: deferred(m.handleClearStash),
+					onYes: m.handleClearStash,
 				})
 			}
 
@@ -533,7 +537,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.focus == focusStag && len(m.files) > 0 && git.HasOneStaged(m.files) && len(m.log) > 0 {
 				m.ask(confirm{
 					title: "Amend commit '" + m.log[0].Subject + "'?",
-					onYes: deferred(m.handleAmend),
+					onYes: m.handleAmend,
 				})
 			}
 		case "p":
@@ -541,7 +545,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.focus == focusStash && len(m.stashes) > 0 {
 				m.ask(confirm{
 					title: "Pop stash '" + m.stashes[m.idxStash].Message + "'?",
-					onYes: deferred(m.handlePopStash),
+					onYes: m.handlePopStash,
 				})
 			}
 		case "c":
@@ -739,7 +743,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) showDiff() tea.Cmd {
+func (m *Model) showDiff() tea.Cmd {
 	return func() tea.Msg {
 		switch m.focus {
 		case focusStag:
@@ -852,7 +856,7 @@ func (m *Model) updateConfirm(msg tea.Msg) tea.Cmd {
 	if !ok {
 		return nil
 	}
-	var run func(*Model) tea.Cmd
+	var run tea.Cmd
 	switch key.String() {
 	case "y", "enter":
 		run = m.confirm.onYes
@@ -865,12 +869,7 @@ func (m *Model) updateConfirm(msg tea.Msg) tea.Cmd {
 	// the question refers to, and leaving it around would let a later
 	// keypress fire it against a stale question.
 	m.confirm = confirm{}
-	if run == nil {
-		return nil
-	}
-	// Run the action now, on the model Update is about to return, so that
-	// any state it changes is part of that model.
-	return run(m)
+	return run
 }
 
 func (m *Model) handleDeleteBranch() tea.Msg {
