@@ -86,24 +86,15 @@ type confirm struct {
 	// help is the key hint line. Empty means defaultConfirmHelp.
 	help string
 
-	// onYes runs the confirmed action, onNo the declined one. Both are
-	// called from Update with the model that is about to be returned, so
-	// an action can open another popup; the Cmd it hands back is the work
-	// itself, which is where the git calls live so they never block the
-	// UI. A nil action just closes the prompt.
+	// onYes runs the confirmed action, onNo the declined one. A nil action
+	// just closes the prompt.
 	//
-	// The action is run during Update rather than returned as a Cmd,
-	// because Update has a value receiver: a model captured in a Cmd
-	// outlives the call that would have made its mutations visible.
-	onYes func(*Model) tea.Cmd
-	onNo  func(*Model) tea.Cmd
-}
-
-// deferred adapts a handler for use as a confirm action. The handler only
-// reads the model, so it can run as a Cmd against the snapshot taken when
-// the prompt opened - the same selection the question refers to.
-func deferred(h tea.Cmd) func(*Model) tea.Cmd {
-	return func(*Model) tea.Cmd { return h }
+	// These are tea.Cmds, so the git calls they run never block the UI.
+	// Model is always used through a pointer, so the model a closure
+	// captures is the live one and changes it makes are visible to the
+	// next render.
+	onYes tea.Cmd
+	onNo  tea.Cmd
 }
 
 type mergePopup struct {
@@ -234,8 +225,8 @@ type Model struct {
 	inRepo bool
 }
 
-func NewModel(dir string) Model {
-	return Model{
+func NewModel(dir string) *Model {
+	return &Model{
 		dir: dir,
 		commitPopup: commitPopup{
 			commitSummary: textinput.New(),
@@ -258,7 +249,7 @@ func NewModel(dir string) Model {
 	}
 }
 
-func (m Model) Init() tea.Cmd {
+func (m *Model) Init() tea.Cmd {
 	return tea.Batch(
 		func() tea.Msg {
 			if git.IsRepo(m.dir) {
@@ -276,7 +267,7 @@ func tickCmd() tea.Cmd {
 	})
 }
 
-func (m Model) Refresh() tea.Cmd {
+func (m *Model) Refresh() tea.Cmd {
 	return tea.Batch(
 		func() tea.Msg {
 			files, err := git.Status(m.dir)
