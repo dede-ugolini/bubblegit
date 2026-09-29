@@ -1,46 +1,31 @@
 package git
 
-import (
-	"fmt"
-	"os/exec"
-	"strings"
-)
+import "strings"
 
 // CreateTag adds an annotated tag name at hash. If message is empty the
 // tag name is used as the tag message so git never opens an editor.
 func CreateTag(dir, name, message, hash string) error {
-	mu.Lock()
-	defer mu.Unlock()
 	if message == "" {
 		message = name
 	}
-	cmd := exec.Command("git", "tag", "-a", name, "-m", message, hash)
-	cmd.Dir = dir
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("%s", strings.TrimSpace(string(out)))
-	}
-	return nil
+	_, err := runGitWrite(dir, "tag", "-a", name, "-m", message, hash)
+	return err
 }
 
 // TagsByCommit maps each tagged commit hash to the tag names pointing at
 // it. Annotated tags are peeled to the commit they reference; lightweight
 // tags use their own object hash.
 func TagsByCommit(dir string) (map[string][]string, error) {
-	mu.RLock()
-	defer mu.RUnlock()
 	format := strings.Join([]string{"%(refname:short)", "%(objectname)", "%(*objectname)"}, logFieldSep)
-	cmd := exec.Command("git", "for-each-ref", "refs/tags", "--format="+format)
-	cmd.Dir = dir
-	out, err := cmd.CombinedOutput()
+	out, err := runGit(dir, "for-each-ref", "refs/tags", "--format="+format)
 	if err != nil {
-		return nil, fmt.Errorf("%s", strings.TrimSpace(string(out)))
+		return nil, err
 	}
-	if string(out) == "" {
+	if out == "" {
 		return nil, nil
 	}
 	tags := make(map[string][]string)
-	for line := range strings.SplitSeq(strings.TrimRight(string(out), "\n"), "\n") {
+	for line := range strings.SplitSeq(strings.TrimRight(out, "\n"), "\n") {
 		f := strings.Split(line, logFieldSep)
 		if len(f) < 3 {
 			continue

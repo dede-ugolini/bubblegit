@@ -1,8 +1,6 @@
 package git
 
 import (
-	"fmt"
-	"os/exec"
 	"regexp"
 	"sort"
 	"strconv"
@@ -39,20 +37,15 @@ var (
 // Branches lists local branches, current branch first, each with the
 // ahead/behind counts relative to its upstream as reported by git.
 func Branches(dir string) ([]BranchInfo, error) {
-	mu.RLock()
-	defer mu.RUnlock()
-	cmd := exec.Command(
-		"git",
-		"branch",
-		"--format=%(HEAD)"+logFieldSep+"%(refname)"+logFieldSep+"%(refname:short)"+logFieldSep+"%(upstream:short)"+logFieldSep+"%(upstream:track)"+logFieldSep+"%(committerdate:unix)",
-	)
-	cmd.Dir = dir
-	out, err := cmd.Output()
+	format := "%(HEAD)" + logFieldSep + "%(refname)" + logFieldSep +
+		"%(refname:short)" + logFieldSep + "%(upstream:short)" + logFieldSep +
+		"%(upstream:track)" + logFieldSep + "%(committerdate:unix)"
+	out, err := runGit(dir, "branch", "--format="+format)
 	if err != nil {
 		return nil, err
 	}
 	var branches []BranchInfo
-	for line := range strings.SplitSeq(string(out), "\n") {
+	for line := range strings.SplitSeq(out, "\n") {
 		line = strings.TrimRight(line, "\r")
 		if line == "" {
 			continue
@@ -90,68 +83,33 @@ func Branches(dir string) ([]BranchInfo, error) {
 
 // Checkout switches the working tree to the given branch.
 func Checkout(dir, branch string) error {
-	mu.Lock()
-	defer mu.Unlock()
-	cmd := exec.Command("git", "checkout", branch)
-	cmd.Dir = dir
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("%s", strings.TrimSpace(string(out)))
-	}
-	return nil
+	_, err := runGitWrite(dir, "checkout", branch)
+	return err
 }
 
 // CreateBranch create and checks out a new branch off the current HEAD.
 func CreateBranch(dir, branch string) error {
-	mu.Lock()
-	defer mu.Unlock()
-	cmd := exec.Command("git", "checkout", "-b", branch)
-	cmd.Dir = dir
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("%s", strings.TrimSpace(string(out)))
-	}
-	return nil
+	_, err := runGitWrite(dir, "checkout", "-b", branch)
+	return err
 }
 
 // DeleteBranch removes a local branch. It refuses (like plain `git branch
 // -d`) if the branch has commits not merged elsewhere.
 func DeleteBranch(dir, branch string) error {
-	mu.Lock()
-	defer mu.Unlock()
-	cmd := exec.Command("git", "branch", "-d", branch)
-	cmd.Dir = dir
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("%s", strings.TrimSpace(string(out)))
-	}
-	return nil
+	_, err := runGitWrite(dir, "branch", "-d", branch)
+	return err
 }
 
 // RenameBranch rename a branch
 func RenameBranch(dir, oldName, newName string) error {
-	mu.Lock()
-	defer mu.Unlock()
-	cmd := exec.Command("git", "branch", "-m", oldName, newName)
-	cmd.Dir = dir
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("%s", strings.TrimSpace(string(out)))
-	}
-	return nil
+	_, err := runGitWrite(dir, "branch", "-m", oldName, newName)
+	return err
 }
 
 // Push pushes branch to the origin remote, setting it as the upstream so a
 // later pull needs no arguments. Errors (no origin remote, rejected
 // non-fast-forward push, etc.) surface as the trimmed git stderr.
 func Push(dir, branch string) error {
-	mu.Lock()
-	defer mu.Unlock()
-	cmd := exec.Command("git", "push", "-u", "origin", branch)
-	cmd.Dir = dir
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("%s", strings.TrimSpace(string(out)))
-	}
-	return nil
+	_, err := runGitWrite(dir, "push", "-u", "origin", branch)
+	return err
 }
