@@ -53,7 +53,7 @@ func visibleWindow(n, height, idx int) (start, end int) {
 // diff panel to their right starting where that column ends - so a panel
 // resize (including the panelFullScreen zeroing-out of the rest) is picked
 // up for free from the same Height/Width fields the renderers already use.
-func (m Model) panelAt(x, y int) (target, row int, ok bool) {
+func (m *Model) panelAt(x, y int) (target, row int, ok bool) {
 	type listPanel struct {
 		focus         int
 		height, width int
@@ -104,7 +104,7 @@ func (m Model) panelAt(x, y int) (target, row int, ok bool) {
 	return 0, -1, false
 }
 
-func (m Model) View() tea.View {
+func (m *Model) View() tea.View {
 	if m.quitting {
 		return tea.NewView("")
 	}
@@ -142,7 +142,7 @@ func (m Model) View() tea.View {
 // fractions of the window the popup is assumed to occupy: they decide
 // where it is placed, not how big it is, since each renderXxx sizes
 // itself.
-func (m Model) overlay(content string, wDiv, hDiv int) tea.View {
+func (m *Model) overlay(content string, wDiv, hDiv int) tea.View {
 	popup := lipgloss.NewLayer(content).
 		X((m.width - m.width/wDiv) / 2).
 		Y((m.height - m.height/hDiv) / 2).
