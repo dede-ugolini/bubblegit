@@ -73,10 +73,6 @@ func parseStatus(out string) ([]FileStatus, error) {
 	return files, nil
 }
 
-func MergeFF(dir, branch string) error {
-	return Merge(dir, branch, "ff")
-}
-
 // Merge merges branch into the current branch. mode is one of "ff"
 // (fast-forward only), "merge" (create a merge commit even when a
 // fast-forward is possible), or "squash" (squash all changes into a
