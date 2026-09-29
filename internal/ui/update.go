@@ -22,13 +22,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if key, ok := msg.(tea.KeyMsg); ok {
 			switch key.String() {
 			case "up", "k":
-				m.moveLog(-1)
+				m.move(focusLog, -1)
 				return m, m.showDiff()
 			case "down", "j":
-				m.moveLog(1)
+				m.move(focusLog, 1)
 				return m, m.showDiff()
 			case "S":
-				lo, hi := m.squashAnchor, m.idxLog
+				lo, hi := m.squashAnchor, m.panels[focusLog].idx
 				if lo > hi {
 					lo, hi = hi, lo
 				}
@@ -283,10 +283,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case branchesMsg:
 		m.branches = []git.BranchInfo(msg)
+		m.clampCursors()
 		return m, nil
 
 	case logMsg:
 		m.log = []git.LogEntry(msg)
+		m.clampCursors()
 		return m, nil
 
 	case aheadMsg:
@@ -299,12 +301,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case stashesMsg:
 		m.stashes = []git.StashEntry(msg)
-		if m.idxStash >= len(m.stashes) {
-			m.idxStash = len(m.stashes) - 1
-		}
-		if m.idxStash < 0 {
-			m.idxStash = 0
-		}
+		m.clampCursors()
 		return m, nil
 
 	case diffMsg:
@@ -355,45 +352,28 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, m.showDiff()
 
 		case "up", "k":
-			switch m.focus {
-			case focusStag:
-				m.moveFile(-1)
-			case focusBranch:
-				m.moveBranch(-1)
-			case focusLog:
-				m.moveLog(-1)
-			case focusStash:
-				m.moveStash(-1)
-			case focusDiff:
+			if m.focus == focusDiff {
 				var cmd tea.Cmd
 				m.diff, cmd = m.diff.Update(msg)
 				return m, cmd
 			}
+			m.move(m.focus, -1)
 			return m, m.showDiff()
 
 		case "down", "j":
-			switch m.focus {
-			case focusStag:
-				m.moveFile(1)
-			case focusBranch:
-				m.moveBranch(1)
-			case focusLog:
-				m.moveLog(1)
-			case focusStash:
-				m.moveStash(1)
-			case focusDiff:
+			if m.focus == focusDiff {
 				var cmd tea.Cmd
 				m.diff, cmd = m.diff.Update(msg)
 				return m, cmd
-
 			}
+			m.move(m.focus, 1)
 			return m, m.showDiff()
 
 		case "d":
 			// Delete Branch
 			if m.focus == focusBranch && len(m.branches) > 0 {
 				m.ask(confirm{
-					title: "Delete branch '" + m.branches[m.idxBranch].Name + "'?",
+					title: "Delete branch '" + m.branches[m.panels[focusBranch].idx].Name + "'?",
 					onYes: m.handleDeleteBranch,
 				})
 			}
@@ -409,7 +389,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Drop stash
 			if m.focus == focusStash && len(m.stashes) > 0 {
 				m.ask(confirm{
-					title: "Drop stash '" + m.stashes[m.idxStash].Message + "'?",
+					title: "Drop stash '" + m.stashes[m.panels[focusStash].idx].Message + "'?",
 					onYes: m.handleDropStash,
 				})
 			}
@@ -474,7 +454,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "r":
 			// Rename Branch
 			if m.focus == focusBranch && len(m.branches) > 0 {
-				old := m.branches[m.idxBranch].Name
+				old := m.branches[m.panels[focusBranch].idx].Name
 				m.inputPopup.action = inputActionRenameBranch
 				m.inputPopup.title = "Rename branch"
 				m.inputPopup.renameFrom = old
@@ -494,14 +474,15 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case "enter":
 			// Expand/collapse file tree directory
-			if m.focus == focusStag && len(m.treeRows) > 0 && m.treeRows[m.idxFiles].isDir {
-				dir := m.treeRows[m.idxFiles].dir
-				if m.collapsed[dir] {
-					delete(m.collapsed, dir)
-				} else {
-					m.collapsed[dir] = true
+			if m.focus == focusStag && len(m.treeRows) > 0 {
+				if row := m.treeRows[m.panels[focusStag].idx]; row.isDir {
+					if m.collapsed[row.dir] {
+						delete(m.collapsed, row.dir)
+					} else {
+						m.collapsed[row.dir] = true
+					}
+					m.rebuildFileTree()
 				}
-				m.rebuildFileTree()
 			}
 			// Checkout Branch
 			if m.focus == focusBranch && len(m.branches) > 0 {
@@ -535,7 +516,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Pop stash
 			if m.focus == focusStash && len(m.stashes) > 0 {
 				m.ask(confirm{
-					title: "Pop stash '" + m.stashes[m.idxStash].Message + "'?",
+					title: "Pop stash '" + m.stashes[m.panels[focusStash].idx].Message + "'?",
 					onYes: m.handlePopStash,
 				})
 			}
@@ -592,19 +573,19 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Squash: start marking a range of commits to fold together.
 			if m.focus == focusLog && len(m.log) > 0 {
 				m.squashMarking = true
-				m.squashAnchor = m.idxLog
+				m.squashAnchor = m.panels[focusLog].idx
 			}
 
 		case "M":
 			if m.focus == focusBranch && len(m.branches) > 0 {
 				m.mergePopup.active = true
 				m.mergePopup.idx = 0
-				m.mergePopup.branch = m.branches[m.idxBranch].Name
+				m.mergePopup.branch = m.branches[m.panels[focusBranch].idx].Name
 			}
 
 		case "P":
 			if m.focus == focusBranch && len(m.branches) > 0 {
-				branch := m.branches[m.idxBranch].Name
+				branch := m.branches[m.panels[focusBranch].idx].Name
 				return m, tea.Sequence(func() tea.Msg { return m.handlePush(branch) }, m.Refresh())
 			}
 
@@ -627,7 +608,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "T":
 			if m.focus == focusLog && len(m.log) > 0 {
 				m.tagPopup.active = true
-				m.tagPopup.hash = m.log[m.idxLog].Hash
+				m.tagPopup.hash = m.log[m.panels[focusLog].idx].Hash
 				m.tagPopup.focus = tagFocusName
 				m.tagPopup.tagName.SetWidth(m.width / 3)
 				m.tagPopup.tagMessage.SetWidth(m.width / 3)
@@ -712,10 +693,11 @@ func (m *Model) showDiff() tea.Cmd {
 				diff string
 				err  error
 			)
+			hash := m.log[m.panels[focusLog].idx].Hash
 			if m.useDelta {
-				diff, err = git.ShowDelta(m.dir, m.log[m.idxLog].Hash, m.panelFullScreen, m.diff.Width())
+				diff, err = git.ShowDelta(m.dir, hash, m.panelFullScreen, m.diff.Width())
 			} else {
-				diff, err = git.Show(m.dir, m.log[m.idxLog].Hash)
+				diff, err = git.Show(m.dir, hash)
 			}
 			if err != nil {
 				return errMsg{err}
@@ -729,10 +711,11 @@ func (m *Model) showDiff() tea.Cmd {
 				diff string
 				err  error
 			)
+			ref := m.stashes[m.panels[focusStash].idx].Ref
 			if m.useDelta {
-				diff, err = git.StashShowDelta(m.dir, m.stashes[m.idxStash].Ref, m.panelFullScreen, m.diff.Width())
+				diff, err = git.StashShowDelta(m.dir, ref, m.panelFullScreen, m.diff.Width())
 			} else {
-				diff, err = git.StashShow(m.dir, m.stashes[m.idxStash].Ref)
+				diff, err = git.StashShow(m.dir, ref)
 			}
 			if err != nil {
 				return errMsg{err}
@@ -775,7 +758,7 @@ func (m *Model) updateConfirm(msg tea.Msg) tea.Cmd {
 }
 
 func (m *Model) handleDeleteBranch() tea.Msg {
-	branch := m.branches[m.idxBranch].Name
+	branch := m.branches[m.panels[focusBranch].idx].Name
 	err := git.DeleteBranch(m.dir, branch)
 	if err != nil {
 		return errMsg{err}
@@ -811,7 +794,7 @@ func (m *Model) handleRestoreFile() tea.Msg {
 }
 
 func (m *Model) handleCheckoutBranch() tea.Msg {
-	err := git.Checkout(m.dir, m.branches[m.idxBranch].Name)
+	err := git.Checkout(m.dir, m.branches[m.panels[focusBranch].idx].Name)
 	if err != nil {
 		return errMsg{err}
 	}
@@ -823,7 +806,7 @@ func (m *Model) handleCheckoutBranch() tea.Msg {
 }
 
 func (m *Model) handleApplyStash() tea.Msg {
-	if err := git.StashApply(m.dir, m.stashes[m.idxStash].Ref); err != nil {
+	if err := git.StashApply(m.dir, m.stashes[m.panels[focusStash].idx].Ref); err != nil {
 		return errMsg{err}
 	}
 	files, err := git.Status(m.dir)
@@ -834,7 +817,7 @@ func (m *Model) handleApplyStash() tea.Msg {
 }
 
 func (m *Model) handleDropStash() tea.Msg {
-	if err := git.StashDrop(m.dir, m.stashes[m.idxStash].Ref); err != nil {
+	if err := git.StashDrop(m.dir, m.stashes[m.panels[focusStash].idx].Ref); err != nil {
 		return errMsg{err}
 	}
 	stashes, err := git.Stashes(m.dir)
@@ -845,7 +828,7 @@ func (m *Model) handleDropStash() tea.Msg {
 }
 
 func (m *Model) handlePopStash() tea.Msg {
-	if err := git.StashPop(m.dir, m.stashes[m.idxStash].Ref); err != nil {
+	if err := git.StashPop(m.dir, m.stashes[m.panels[focusStash].idx].Ref); err != nil {
 		return errMsg{err}
 	}
 	stashes, err := git.Stashes(m.dir)
@@ -890,7 +873,7 @@ func (m *Model) handlePushStash() tea.Msg {
 
 func (m *Model) handleStashBranch() tea.Msg {
 	branch := m.stashBranchPopup.input.Value()
-	if err := git.StashBranch(m.dir, branch, m.stashes[m.idxStash].Ref); err != nil {
+	if err := git.StashBranch(m.dir, branch, m.stashes[m.panels[focusStash].idx].Ref); err != nil {
 		return errMsg{err}
 	}
 	return nil
@@ -1047,7 +1030,7 @@ func (m *Model) handlePush(branch string) tea.Msg {
 }
 
 func (m *Model) handleRewordCommit() tea.Cmd {
-	entry := m.log[m.idxLog]
+	entry := m.log[m.panels[focusLog].idx]
 	m.commitPopup.reword = true
 	m.commitPopup.rewordHash = entry.Hash
 	m.commitPopup.squash = false
@@ -1106,19 +1089,10 @@ func (m *Model) mouseClick(ms tea.Mouse) {
 		return
 	}
 	m.focus = target
-	if row < 0 {
+	if row < 0 || target == focusDiff {
 		return
 	}
-	switch target {
-	case focusStag:
-		m.idxFiles = row
-	case focusBranch:
-		m.idxBranch = row
-	case focusLog:
-		m.idxLog = row
-	case focusStash:
-		m.idxStash = row
-	}
+	m.panels[target].idx = row
 }
 
 // mouseWheel scrolls the diff viewport when the wheel is over the diff
@@ -1141,17 +1115,7 @@ func (m *Model) mouseWheel(ms tea.Mouse) tea.Cmd {
 		return nil
 	}
 	m.focus = target
-
-	switch target {
-	case focusStag:
-		m.moveFile(delta)
-	case focusBranch:
-		m.moveBranch(delta)
-	case focusLog:
-		m.moveLog(delta)
-	case focusStash:
-		m.moveStash(delta)
-	case focusDiff:
+	if target == focusDiff {
 		if delta < 0 {
 			m.diff.ScrollUp(3)
 		} else {
@@ -1159,51 +1123,6 @@ func (m *Model) mouseWheel(ms tea.Mouse) tea.Cmd {
 		}
 		return nil
 	}
+	m.move(target, delta)
 	return m.showDiff()
-}
-
-func (m *Model) moveFile(delta int) {
-	m.idxFiles += delta
-
-	if m.idxFiles < 0 {
-		m.idxFiles = 0
-	}
-
-	if m.idxFiles >= len(m.treeRows) {
-		m.idxFiles = len(m.treeRows) - 1
-	}
-}
-
-func (m *Model) moveBranch(delta int) {
-	m.idxBranch += delta
-
-	if m.idxBranch < 0 {
-		m.idxBranch = 0
-	}
-
-	if m.idxBranch >= len(m.branches) {
-		m.idxBranch = len(m.branches) - 1
-	}
-}
-
-func (m *Model) moveLog(delta int) {
-	m.idxLog += delta
-	if m.idxLog < 0 {
-		m.idxLog = 0
-	}
-
-	if m.idxLog >= len(m.log) {
-		m.idxLog = len(m.log) - 1
-	}
-}
-
-func (m *Model) moveStash(delta int) {
-	m.idxStash += delta
-	if m.idxStash < 0 {
-		m.idxStash = 0
-	}
-
-	if m.idxStash >= len(m.stashes) {
-		m.idxStash = len(m.stashes) - 1
-	}
 }
