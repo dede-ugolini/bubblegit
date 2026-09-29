@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type BranchInfo struct {
@@ -24,6 +25,10 @@ type BranchInfo struct {
 
 	// Gone reports an upstream that no longer exists on the remote.
 	Gone bool
+
+	// CommitTime is the committer time of the branch tip; the zero value
+	// means the branch has no commits yet (unborn).
+	CommitTime time.Time
 }
 
 var (
@@ -39,7 +44,7 @@ func Branches(dir string) ([]BranchInfo, error) {
 	cmd := exec.Command(
 		"git",
 		"branch",
-		"--format=%(HEAD)"+logFieldSep+"%(refname)"+logFieldSep+"%(refname:short)"+logFieldSep+"%(upstream:short)"+logFieldSep+"%(upstream:track)",
+		"--format=%(HEAD)"+logFieldSep+"%(refname)"+logFieldSep+"%(refname:short)"+logFieldSep+"%(upstream:short)"+logFieldSep+"%(upstream:track)"+logFieldSep+"%(committerdate:unix)",
 	)
 	cmd.Dir = dir
 	out, err := cmd.Output()
@@ -52,8 +57,8 @@ func Branches(dir string) ([]BranchInfo, error) {
 		if line == "" {
 			continue
 		}
-		f := strings.SplitN(line, logFieldSep, 5)
-		if len(f) != 5 {
+		f := strings.SplitN(line, logFieldSep, 6)
+		if len(f) != 6 {
 			continue
 		}
 		// In detached-HEAD state, git lists a synthetic
@@ -63,6 +68,9 @@ func Branches(dir string) ([]BranchInfo, error) {
 			continue
 		}
 		b := BranchInfo{Name: f[2], Current: f[0] == "*", Upstream: f[3]}
+		if ts, err := strconv.ParseInt(f[5], 10, 64); err == nil {
+			b.CommitTime = time.Unix(ts, 0)
+		}
 		if track := f[4]; track != "" {
 			b.Gone = strings.Contains(track, "gone")
 			if m := aheadRe.FindStringSubmatch(track); m != nil {

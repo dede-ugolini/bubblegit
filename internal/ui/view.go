@@ -5,6 +5,7 @@ import (
 	"image/color"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"bubblegit/internal/git"
 
@@ -691,29 +692,40 @@ func (m *Model) renderBranches() string {
 	var names []string
 
 	start, end := visibleWindow(len(m.branches), m.branchHeight, m.idxBranch)
+	agoColor := lipgloss.NewStyle().Foreground(m.theme.Muted)
 	for i := start; i < end; i++ {
 		b := m.branches[i]
-		row := b.Name
-		if track := branchTrack(b); track != "" {
-			row += " " + track
+		track := branchTrack(b)
+		ago := ""
+		if a := timeAgo(b.CommitTime, time.Now()); a != "" {
+			ago = fmt.Sprintf("%4s ", a)
 		}
 		if m.idxBranch == i && m.focus == focusBranch {
-			// Deliberately plain text here: coloring the current branch's
-			// name first and only then wrapping in Width(...).Background(...)
-			// would hit the same nested-reset issue as log/stash - see
-			// there.
-			if b.Current {
-				names = append(names, lipgloss.NewStyle().Width(m.branchWidth).Background(m.theme.Cursor).Render(" * "+row))
-				continue
+			// Deliberately plain text here (time included): coloring any of
+			// it and only then wrapping in Width(...).Background(...) would
+			// hit the nested-reset issue seen in log/stash - see there.
+			row := ago + b.Name
+			if track != "" {
+				row += " " + track
 			}
-			names = append(names, lipgloss.NewStyle().Width(m.branchWidth).Background(m.theme.Cursor).Render("   "+row))
+			prefix := "   "
+			if b.Current {
+				prefix = " * "
+			}
+			names = append(names, lipgloss.NewStyle().Width(m.branchWidth).Background(m.theme.Cursor).Render(prefix+row))
 			continue
 		}
+		name := b.Name
+		prefix := "   "
 		if b.Current {
-			names = append(names, lipgloss.NewStyle().Width(m.branchWidth).Foreground(m.theme.Accent).Render(" * "+row))
-			continue
+			prefix = " * "
+			name = lipgloss.NewStyle().Foreground(m.theme.Accent).Render(name)
 		}
-		names = append(names, lipgloss.NewStyle().Width(m.branchWidth).Render("   "+row))
+		row := agoColor.Render(ago) + name
+		if track != "" {
+			row += " " + track
+		}
+		names = append(names, lipgloss.NewStyle().Width(m.branchWidth).Render(prefix+row))
 	}
 
 	// The outer style deliberately has no Width of its own - see the note
@@ -755,6 +767,34 @@ func branchTrack(b git.BranchInfo) string {
 		return ""
 	}
 	return strings.Join(parts, ", ")
+}
+
+// timeAgo renders t relative to now as a compact single-unit age like
+// lazygit's: "3m", "5h", "2d", "4w", "6mo" or "1y". A zero time (branch
+// with no commits) returns ""; sub-minute and future (clock-skewed) ages
+// both read as "1m".
+func timeAgo(t, now time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	d := now.Sub(t)
+	if d < time.Minute {
+		return "1m"
+	}
+	switch {
+	case d < time.Hour:
+		return fmt.Sprintf("%dm", int(d/time.Minute))
+	case d < 24*time.Hour:
+		return fmt.Sprintf("%dh", int(d/time.Hour))
+	case d < 7*24*time.Hour:
+		return fmt.Sprintf("%dd", int(d/(24*time.Hour)))
+	case d < 30*24*time.Hour:
+		return fmt.Sprintf("%dw", int(d/(7*24*time.Hour)))
+	case d < 365*24*time.Hour:
+		return fmt.Sprintf("%dmo", int(d/(30*24*time.Hour)))
+	default:
+		return fmt.Sprintf("%dy", int(d/(365*24*time.Hour)))
+	}
 }
 
 // authorInitials returns an up-to-two-letter uppercase abbreviation for an
