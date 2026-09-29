@@ -271,20 +271,73 @@ func (m *Model) renderNormalView() string {
 }
 
 func (m *Model) renderDiff() string {
-	if m.focus == focusDiff {
-		return lipgloss.NewStyle().
-			Border(lipgloss.NormalBorder(), true).
-			BorderForeground(m.theme.FocusBorder).
-			Bold(true).
-			Height(m.diff.Height()).
-			Width(m.diff.Width()).
-			Render(m.diff.View())
-	}
-	return lipgloss.NewStyle().
+	// Width includes the borders, so m.diff.Width() is the whole panel and
+	// the viewport is padded to it.
+	return m.titledPanel(focusDiff, "Diff", m.diff.Width(), m.diff.Height(), m.diff.View())
+}
+
+// titledPanel renders content in the panel's border with title drawn into the
+// top edge:
+//
+//	┌─ Files ─────────┐
+//	│ ...             │
+//	└─────────────────┘
+//
+// lipgloss v2 has no border-title support, and it offers no way to draw only
+// three of the four edges either - BorderTop(false) still reserves the row,
+// so a panel would come out a line taller. So the box is rendered exactly as
+// it was and its top line is then replaced, which leaves a panel's height and
+// width untouched and visibleWindow and panelAt needing no adjustment.
+// Measuring the line being replaced is what keeps the title edge exactly as
+// wide as the box it belongs to, whatever the content happened to be.
+//
+// bodyWidth is the Width to set on the body style, or 0 to leave it unset:
+// the diff panel needs one so its viewport is padded, but the list panels must
+// go without it, since re-applying Width to already-padded, already-styled
+// lines corrupts their backgrounds (see the note on renderStash).
+//
+// A title too wide for the panel is dropped rather than allowed to widen or
+// misalign the box.
+func (m *Model) titledPanel(focus int, title string, bodyWidth, height int, content string) string {
+	body := lipgloss.NewStyle().
 		Border(lipgloss.NormalBorder(), true).
-		Height(m.diff.Height()).
-		Width(m.diff.Width()).
-		Render(m.diff.View())
+		Height(height)
+	if bodyWidth > 0 {
+		body = body.Width(bodyWidth)
+	}
+	if m.focus == focus {
+		body = body.BorderForeground(m.theme.FocusBorder).Bold(true)
+	}
+
+	lines := strings.Split(body.Render(content), "\n")
+	if len(lines) == 0 || lines[0] == "" {
+		// A panel collapsed by fullscreen renders nothing at all; don't give
+		// it a title edge it has no box to sit on.
+		return strings.Join(lines, "\n")
+	}
+	width := lipgloss.Width(lines[0])
+
+	// "─ Files " between the corners, then enough "─" to fill the edge out
+	// to the width of the line it replaces. The edge is colored with the
+	// same color lipgloss gave the border, and left unbolded, because Bold
+	// reaches a panel's content but not its border glyphs.
+	label := "─ " + title + " "
+	fill := width - 2 - lipgloss.Width(label)
+	if lipgloss.Width(label)+2 > width {
+		// Too narrow for the title: keep the box's width and drop the
+		// title rather than overflowing.
+		label, fill = "", width-2
+	}
+	if fill < 0 {
+		fill = 0
+	}
+	edge := lipgloss.NewStyle()
+	if m.focus == focus {
+		edge = edge.Foreground(m.theme.FocusBorder)
+	}
+	lines[0] = edge.Render("┌" + label + strings.Repeat("─", fill) + "┐")
+
+	return strings.Join(lines, "\n")
 }
 
 type fileIcon struct {
@@ -381,19 +434,7 @@ func (m *Model) renderFiles() string {
 		s = append(s, lipgloss.NewStyle().Width(p.width).Render(""))
 	}
 
-	if m.focus == focusStag {
-		return lipgloss.NewStyle().
-			Border(lipgloss.NormalBorder(), true).
-			BorderForeground(m.theme.FocusBorder).
-			Bold(true).
-			Height(p.height).
-			Render(strings.Join(s, "\n"))
-	}
-
-	return lipgloss.NewStyle().
-		Border(lipgloss.NormalBorder(), true).
-		Height(p.height).
-		Render(strings.Join(s, "\n"))
+	return m.titledPanel(focusStag, "Files", 0, p.height, strings.Join(s, "\n"))
 }
 
 func (m *Model) renderBranches() string {
@@ -446,19 +487,7 @@ func (m *Model) renderBranches() string {
 		names = append(names, lipgloss.NewStyle().Width(p.width).Render(""))
 	}
 
-	if m.focus == focusBranch {
-		return lipgloss.NewStyle().
-			Border(lipgloss.NormalBorder(), true).
-			BorderForeground(m.theme.FocusBorder).
-			Bold(true).
-			Height(p.height).
-			Render(strings.Join(names, "\n"))
-	}
-
-	return lipgloss.NewStyle().
-		Border(lipgloss.NormalBorder(), true).
-		Height(p.height).
-		Render(strings.Join(names, "\n"))
+	return m.titledPanel(focusBranch, "Branches", 0, p.height, strings.Join(names, "\n"))
 }
 
 // branchTrack renders a branch's ahead/behind status relative to its
@@ -592,18 +621,7 @@ func (m *Model) renderLog() string {
 	if len(entrys) == 0 {
 		entrys = append(entrys, lipgloss.NewStyle().Width(p.width).Render(""))
 	}
-	if m.focus == focusLog {
-		return lipgloss.NewStyle().
-			Border(lipgloss.NormalBorder(), true).
-			BorderForeground(m.theme.FocusBorder).
-			Bold(true).
-			Height(p.height).
-			Render(strings.Join(entrys, "\n"))
-	}
-	return lipgloss.NewStyle().
-		Border(lipgloss.NormalBorder(), true).
-		Height(p.height).
-		Render(strings.Join(entrys, "\n"))
+	return m.titledPanel(focusLog, "Log", 0, p.height, strings.Join(entrys, "\n"))
 }
 
 func (m *Model) renderStash() string {
@@ -642,18 +660,7 @@ func (m *Model) renderStash() string {
 	if len(entrys) == 0 {
 		entrys = append(entrys, lipgloss.NewStyle().Width(p.width).Render(""))
 	}
-	if m.focus == focusStash {
-		return lipgloss.NewStyle().
-			Border(lipgloss.NormalBorder(), true).
-			BorderForeground(m.theme.FocusBorder).
-			Bold(true).
-			Height(p.height).
-			Render(strings.Join(entrys, "\n"))
-	}
-	return lipgloss.NewStyle().
-		Border(lipgloss.NormalBorder(), true).
-		Height(p.height).
-		Render(strings.Join(entrys, "\n"))
+	return m.titledPanel(focusStash, "Stash", 0, p.height, strings.Join(entrys, "\n"))
 }
 
 func (m *Model) renderFooter() string {
