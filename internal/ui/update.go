@@ -163,13 +163,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if key, ok := msg.(tea.KeyMsg); ok {
 			switch key.String() {
 			case "up", "k":
-				m.mergePopup.idx = (m.mergePopup.idx - 1 + len(mergeModes)) % len(mergeModes)
+				m.mergePopup.idx = (m.mergePopup.idx - 1 + len(git.MergeModes)) % len(git.MergeModes)
 				return m, nil
 			case "down", "j":
-				m.mergePopup.idx = (m.mergePopup.idx + 1) % len(mergeModes)
+				m.mergePopup.idx = (m.mergePopup.idx + 1) % len(git.MergeModes)
 				return m, nil
 			case "enter":
-				mode := mergeModes[m.mergePopup.idx]
+				mode := git.MergeModes[m.mergePopup.idx]
 				branch := m.mergePopup.branch
 				m.mergePopup.active = false
 				return m, tea.Sequence(func() tea.Msg { return m.handleMerge(branch, mode) }, m.Refresh())
@@ -1161,8 +1161,8 @@ func (m *Model) handleTag() tea.Msg {
 	return nil
 }
 
-func (m *Model) handleMerge(branch string, mode mergeMode) tea.Msg {
-	err := git.Merge(m.dir, branch, mode.gitArg())
+func (m *Model) handleMerge(branch string, mode git.MergeMode) tea.Msg {
+	err := git.Merge(m.dir, branch, mode)
 	if err != nil {
 		return errMsg{err}
 	}
