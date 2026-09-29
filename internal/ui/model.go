@@ -148,31 +148,46 @@ type tagPopup struct {
 // so their size lives here instead of a height/width pair per panel.
 type panel struct {
 	height, width int
+
+	// idx is the selected row within the panel.
+	idx int
+}
+
+// clampRow bounds idx to a list of n rows, matching the order the panels
+// have always used: a below-range index clamps to 0 first, and one at or
+// past the end clamps to n-1, so an empty list yields -1 when idx wasn't
+// itself negative.
+func clampRow(idx, n int) int {
+	if idx < 0 {
+		return 0
+	}
+	if idx >= n {
+		return n - 1
+	}
+	return idx
 }
 
 type Model struct {
 	dir string
 
-	// panels holds the size of each list panel, indexed by focus constant:
-	// panels[focusBranch] is the branch panel. focusDiff has no entry,
-	// because the diff panel's size lives in the viewport itself.
+	// panels holds the geometry and cursor of each list panel, indexed by
+	// focus constant: panels[focusBranch] is the branch panel. focusDiff has
+	// no entry, because the diff panel's size lives in the viewport itself
+	// and it has no cursor.
 	panels [focusCount]panel
 
-	files    []git.FileStatus
-	idxFiles int
+	files []git.FileStatus
 
 	// treeRows is the flattened file tree (directories interspersed with
-	// files) the files panel renders; idxFiles indexes it rather than files.
-	// collapsed tracks which directory paths (repo-relative) are collapsed,
-	// so directories are expanded by default.
+	// files) the files panel renders; the files panel's cursor indexes it
+	// rather than files. collapsed tracks which directory paths
+	// (repo-relative) are collapsed, so directories are expanded by default.
 	treeRows  []fileRow
 	collapsed map[string]bool
 
-	branches  []git.BranchInfo
-	idxBranch int
+	branches []git.BranchInfo
 
-	log    []git.LogEntry
-	idxLog int
+	log []git.LogEntry
 
 	// ahead is the set of log hashes the current branch carries but its
 	// upstream doesn't; their short hashes render in theme.Ahead.
@@ -182,13 +197,12 @@ type Model struct {
 
 	// squashMarking is true while the user is marking a range of commits in
 	// the log panel to squash together; squashAnchor is the log index where
-	// marking started. The current range is always
-	// [min(squashAnchor, idxLog), max(squashAnchor, idxLog)].
+	// marking started. The current range is always the span between
+	// squashAnchor and the log panel's cursor.
 	squashMarking bool
 	squashAnchor  int
 
-	stashes  []git.StashEntry
-	idxStash int
+	stashes []git.StashEntry
 
 	// confirm is the modal "are you sure?" prompt. At most one is open at
 	// a time, so one value covers every destructive action instead of a
@@ -291,7 +305,10 @@ const diffLayoutH, diffLayoutW = 90, 55
 // fullscreen both come through here, so the two can't drift apart.
 func (m *Model) setSplitLayout(w, h int) {
 	for i, f := range splitLayout {
-		m.panels[i] = panel{height: h * f.h / 100, width: w * f.w / 100}
+		// Assign the geometry rather than the whole panel: a resize must
+		// leave each panel's cursor where the user left it.
+		p := &m.panels[i]
+		p.height, p.width = h*f.h/100, w*f.w/100
 	}
 	m.diff.SetHeight(h * diffLayoutH / 100)
 	m.diff.SetWidth(w * diffLayoutW / 100)
@@ -302,13 +319,14 @@ func (m *Model) setSplitLayout(w, h int) {
 // thing left on screen.
 func (m *Model) setFullscreenLayout(focus, w, h int) {
 	for i := range m.panels {
+		p := &m.panels[i]
 		switch {
 		case i == focusDiff:
 			// The diff panel's size lives in the viewport, handled below.
 		case i == focus:
-			m.panels[i] = panel{height: h, width: w}
+			p.height, p.width = h, w
 		default:
-			m.panels[i] = panel{}
+			p.height, p.width = 0, 0
 		}
 	}
 	if focus == focusDiff {
@@ -318,6 +336,41 @@ func (m *Model) setFullscreenLayout(focus, w, h int) {
 	}
 	m.diff.SetHeight(0)
 	m.diff.SetWidth(0)
+}
+
+// rowCount reports how many rows a list panel currently has. Each panel
+// counts a different slice: the files panel counts the flattened tree, not
+// m.files.
+func (m *Model) rowCount(focus int) int {
+	switch focus {
+	case focusStag:
+		return len(m.treeRows)
+	case focusBranch:
+		return len(m.branches)
+	case focusLog:
+		return len(m.log)
+	case focusStash:
+		return len(m.stashes)
+	}
+	return 0
+}
+
+// move moves a list panel's cursor by delta rows, clamped to the rows it
+// has. focusDiff has no cursor and is left alone.
+func (m *Model) move(focus, delta int) {
+	if focus == focusDiff {
+		return
+	}
+	m.panels[focus].idx = clampRow(m.panels[focus].idx+delta, m.rowCount(focus))
+}
+
+// clampCursors re-clamps every list panel's cursor. Call it after replacing
+// a panel's data, so a list that shrank (or was empty when the cursor last
+// moved) can't leave the cursor pointing past its end.
+func (m *Model) clampCursors() {
+	for i := focusStag; i < focusDiff; i++ {
+		m.panels[i].idx = clampRow(m.panels[i].idx, m.rowCount(i))
+	}
 }
 
 func (m *Model) Refresh() tea.Cmd {

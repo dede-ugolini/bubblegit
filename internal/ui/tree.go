@@ -135,12 +135,7 @@ func filesLess(a, b string) bool {
 // clamping the cursor to the new row count.
 func (m *Model) rebuildFileTree() {
 	m.treeRows = buildFileRows(m.files, m.collapsed)
-	if m.idxFiles >= len(m.treeRows) {
-		m.idxFiles = len(m.treeRows) - 1
-	}
-	if m.idxFiles < 0 {
-		m.idxFiles = 0
-	}
+	m.clampCursors()
 }
 
 // selectedFile returns the index into m.files of the file under the cursor,
@@ -150,7 +145,7 @@ func (m *Model) selectedFile() (int, bool) {
 	if len(m.treeRows) == 0 {
 		return 0, false
 	}
-	row := m.treeRows[m.idxFiles]
+	row := m.treeRows[m.panels[focusStag].idx]
 	if row.isDir {
 		return 0, false
 	}
