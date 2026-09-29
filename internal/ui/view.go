@@ -472,7 +472,7 @@ func (m *Model) renderMergePopup() string {
 
 	var lines []string
 	lines = append(lines, "Merge '"+m.mergePopup.branch+"' into current branch:")
-	for i, mode := range mergeModes {
+	for i, mode := range git.MergeModes {
 		prefix := "  "
 		style := lipgloss.NewStyle().Width(m.width / 3)
 		if m.mergePopup.idx == i {

@@ -352,7 +352,7 @@ func TestMerge(t *testing.T) {
 		run(t, dir, "git", "commit", "-m", "feat: change")
 
 		run(t, dir, "git", "checkout", main)
-		if err := Merge(dir, "feat", "ff"); err != nil {
+		if err := Merge(dir, "feat", MergeFF); err != nil {
 			t.Fatalf("Merge(ff) error: %v", err)
 		}
 		content, err := os.ReadFile(filepath.Join(dir, "hello.go"))
@@ -390,7 +390,7 @@ func TestMerge(t *testing.T) {
 		run(t, dir, "git", "add", "main.go")
 		run(t, dir, "git", "commit", "-m", "main: change")
 
-		if err := Merge(dir, "feat", "merge"); err != nil {
+		if err := Merge(dir, "feat", MergeCommit); err != nil {
 			t.Fatalf("Merge(merge) error: %v", err)
 		}
 		cmd := exec.Command("git", "rev-list", "--parents", "-n", "1", "HEAD")
@@ -427,7 +427,7 @@ func TestMerge(t *testing.T) {
 		run(t, dir, "git", "add", "main.go")
 		run(t, dir, "git", "commit", "-m", "main: change")
 
-		if err := Merge(dir, "feat", "squash"); err != nil {
+		if err := Merge(dir, "feat", MergeSquash); err != nil {
 			t.Fatalf("Merge(squash) error: %v", err)
 		}
 		cmd := exec.Command("git", "rev-list", "--parents", "-n", "1", "HEAD")

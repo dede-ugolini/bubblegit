@@ -3,7 +3,6 @@ package git
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"os/exec"
 	"strings"
@@ -111,35 +110,4 @@ func parseStatus(out string) ([]FileStatus, error) {
 		files = append(files, fs)
 	}
 	return files, nil
-}
-
-// Merge merges branch into the current branch. mode is one of "ff"
-// (fast-forward only), "merge" (create a merge commit even when a
-// fast-forward is possible), or "squash" (squash all changes into a
-// single commit).
-func Merge(dir, branch, mode string) error {
-	mu.Lock()
-	defer mu.Unlock()
-
-	var args []string
-	switch mode {
-	case "ff":
-		args = []string{"merge", "--ff-only", branch}
-	case "merge":
-		args = []string{"merge", "--no-ff", "--no-edit", branch}
-	case "squash":
-		args = []string{"merge", "--squash", branch}
-	default:
-		return fmt.Errorf("unknown merge mode %q", mode)
-	}
-	if _, err := execGit(dir, nil, args...); err != nil {
-		return err
-	}
-	if mode == "squash" {
-		// --squash stages the merge but records no commit, so the folded
-		// changes still need one.
-		_, err := execGit(dir, nil, "commit", "-m", "Squash merge branch '"+branch+"'")
-		return err
-	}
-	return nil
 }
