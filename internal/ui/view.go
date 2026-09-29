@@ -276,12 +276,17 @@ func (m *Model) renderDiff() string {
 	return m.titledPanel(focusDiff, "Diff", m.diff.Width(), m.diff.Height(), m.diff.View())
 }
 
+// panelBorder is the border every list panel and the diff panel is drawn in,
+// matching the popups. titledPanel takes its corners and fill rune from here
+// so the title edge can't drift away from the box it belongs to.
+var panelBorder = lipgloss.RoundedBorder()
+
 // titledPanel renders content in the panel's border with title drawn into the
 // top edge:
 //
-//	┌─ Files ─────────┐
+//	╭─ Files ─────────╮
 //	│ ...             │
-//	└─────────────────┘
+//	╰─────────────────╯
 //
 // lipgloss v2 has no border-title support, and it offers no way to draw only
 // three of the four edges either - BorderTop(false) still reserves the row,
@@ -300,7 +305,7 @@ func (m *Model) renderDiff() string {
 // misalign the box.
 func (m *Model) titledPanel(focus int, title string, bodyWidth, height int, content string) string {
 	body := lipgloss.NewStyle().
-		Border(lipgloss.NormalBorder(), true).
+		Border(panelBorder, true).
 		Height(height)
 	if bodyWidth > 0 {
 		body = body.Width(bodyWidth)
@@ -317,11 +322,11 @@ func (m *Model) titledPanel(focus int, title string, bodyWidth, height int, cont
 	}
 	width := lipgloss.Width(lines[0])
 
-	// "─ Files " between the corners, then enough "─" to fill the edge out
-	// to the width of the line it replaces. The edge is colored with the
-	// same color lipgloss gave the border, and left unbolded, because Bold
+	// panelBorder's fill rune and corners around "Title ", then enough fill
+	// to reach the width of the line being replaced. The edge is colored with
+	// the same color lipgloss gave the border, and left unbolded, because Bold
 	// reaches a panel's content but not its border glyphs.
-	label := "─ " + title + " "
+	label := panelBorder.Top + " " + title + " "
 	fill := width - 2 - lipgloss.Width(label)
 	if lipgloss.Width(label)+2 > width {
 		// Too narrow for the title: keep the box's width and drop the
@@ -335,7 +340,8 @@ func (m *Model) titledPanel(focus int, title string, bodyWidth, height int, cont
 	if m.focus == focus {
 		edge = edge.Foreground(m.theme.FocusBorder)
 	}
-	lines[0] = edge.Render("┌" + label + strings.Repeat("─", fill) + "┐")
+	lines[0] = edge.Render(panelBorder.TopLeft + label +
+		strings.Repeat(panelBorder.Top, fill) + panelBorder.TopRight)
 
 	return strings.Join(lines, "\n")
 }
