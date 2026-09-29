@@ -64,6 +64,48 @@ type stashBranchPopup struct {
 	active bool
 }
 
+// defaultConfirmHelp is the key hint shown when a confirm doesn't set
+// its own.
+const defaultConfirmHelp = "y/enter confirm · n/esc cancel"
+
+// confirm is a modal "are you sure?" prompt for an action that discards
+// work. Only one can be open at a time, so a single value on Model serves
+// every such action; ask opens one and updateConfirm runs it.
+//
+// Whatever the prompt needs to display is captured in title and detail
+// when it's opened, because the selection can move underneath it and the
+// action must still refer to what the user was actually asked about.
+type confirm struct {
+	active bool
+
+	// title is the question ("Delete branch 'foo'?"). detail is optional
+	// extra context shown below it, blank for most prompts.
+	title  string
+	detail string
+
+	// help is the key hint line. Empty means defaultConfirmHelp.
+	help string
+
+	// onYes runs the confirmed action, onNo the declined one. Both are
+	// called from Update with the model that is about to be returned, so
+	// an action can open another popup; the Cmd it hands back is the work
+	// itself, which is where the git calls live so they never block the
+	// UI. A nil action just closes the prompt.
+	//
+	// The action is run during Update rather than returned as a Cmd,
+	// because Update has a value receiver: a model captured in a Cmd
+	// outlives the call that would have made its mutations visible.
+	onYes func(*Model) tea.Cmd
+	onNo  func(*Model) tea.Cmd
+}
+
+// deferred adapts a handler for use as a confirm action. The handler only
+// reads the model, so it can run as a Cmd against the snapshot taken when
+// the prompt opened - the same selection the question refers to.
+func deferred(h tea.Cmd) func(*Model) tea.Cmd {
+	return func(*Model) tea.Cmd { return h }
+}
+
 type mergePopup struct {
 	active bool
 	idx    int
@@ -148,46 +190,15 @@ type Model struct {
 	squashMarking bool
 	squashAnchor  int
 
-	stashes           []git.StashEntry
-	idxStash          int
-	stashHeight       int
-	stashWidth        int
-	stashClearConfirm bool
+	stashes     []git.StashEntry
+	idxStash    int
+	stashHeight int
+	stashWidth  int
 
-	// dropConfirm is true while the user is confirming dropping the most
-	// recent commit (m.log[0]); dropSubject is its subject for display.
-	dropConfirm bool
-	dropSubject string
-
-	// deleteBranchConfirm is true while the user is confirming deleting a
-	// branch (m.branches[m.idxBranch] when "d" was pressed); deleteBranchName
-	// is its name, captured at that point for display.
-	deleteBranchConfirm bool
-	deleteBranchName    string
-
-	// restoreFileConfirm is true while the user is confirming restoring a
-	// file (m.files[m.idxFiles] when "d" was pressed); restoreFilePath is
-	// its path, captured at that point for display.
-	restoreFileConfirm bool
-	restoreFilePath    string
-
-	// dropStashConfirm is true while the user is confirming dropping a
-	// stash entry (m.stashes[m.idxStash] when "d" was pressed);
-	// dropStashMessage is its message, captured at that point for display.
-	dropStashConfirm bool
-	dropStashMessage string
-
-	// popStashConfirm is true while the user is confirming popping a
-	// stash entry (m.stashes[m.idxStash] when "p" was pressed);
-	// popStashMessage is its message, captured at that point for display.
-	popStashConfirm bool
-	popStashMessage string
-
-	// amendConfirm is true while the user is confirming amending HEAD
-	// (m.log[0] when "A" was pressed); amendSubject is its subject,
-	// captured at that point for display.
-	amendConfirm bool
-	amendSubject string
+	// confirm is the modal "are you sure?" prompt. At most one is open at
+	// a time, so one value covers every destructive action instead of a
+	// bool plus a captured detail string per action.
+	confirm confirm
 
 	tagPopup    tagPopup
 	commitPopup commitPopup
@@ -216,11 +227,11 @@ type Model struct {
 	ready    bool
 	quitting bool
 
-	// initRepoConfirm is true while asking whether to git init when the
-	// working directory isn't a repository; inRepo is false until one exists
-	// (it gates the tick refresh to keep git errors off the screen).
-	initRepoConfirm bool
-	inRepo          bool
+	// inRepo is false until a repository exists - while the startup
+	// confirm is still up, or the branch name for git init hasn't been
+	// entered yet. It gates the tick refresh to keep git errors off the
+	// screen.
+	inRepo bool
 }
 
 func NewModel(dir string) Model {

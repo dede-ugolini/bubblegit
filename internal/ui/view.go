@@ -114,251 +114,22 @@ func (m Model) View() tea.View {
 		return tea.NewView("Loading...")
 	}
 
-	if m.initRepoConfirm {
-		popupWidth := m.width / 3
-		popupHeight := m.height / 4
-
-		popup := lipgloss.NewLayer(m.renderInitRepoConfirmPopup()).
-			X((m.width - popupWidth) / 2).
-			Y((m.height - popupHeight) / 2).
-			Z(1)
-
-		base := lipgloss.NewLayer(m.renderNormalView()).
-			Z(0)
-
-		c := lipgloss.NewCompositor(base, popup)
-		v := tea.NewView(c.Render())
-		v.AltScreen = true
-		v.MouseMode = tea.MouseModeCellMotion
-		return v
-	}
-
-	if m.commitPopup.active {
-		popupWidth := m.width / 4
-		popupHeight := m.height / 4
-
-		popup := lipgloss.NewLayer(m.renderPopup()).
-			X((m.width - popupWidth) / 2).
-			Y((m.height - popupHeight) / 2).
-			Z(1)
-
-		base := lipgloss.NewLayer(m.renderNormalView()).
-			Z(0)
-
-		c := lipgloss.NewCompositor(base, popup)
-		v := tea.NewView(c.Render())
-		v.AltScreen = true
-		v.MouseMode = tea.MouseModeCellMotion
-		return v
-	}
-
-	if m.tagPopup.active {
-		popupWidth := m.width / 4
-		popupHeight := m.height / 4
-
-		popup := lipgloss.NewLayer(m.renderTagPopup()).
-			X((m.width - popupWidth) / 2).
-			Y((m.height - popupHeight) / 2).
-			Z(1)
-
-		base := lipgloss.NewLayer(m.renderNormalView()).
-			Z(0)
-
-		c := lipgloss.NewCompositor(base, popup)
-		v := tea.NewView(c.Render())
-		v.AltScreen = true
-		v.MouseMode = tea.MouseModeCellMotion
-		return v
-	}
-
-	if m.mergePopup.active {
-		popupWidth := m.width / 3
-		popupHeight := m.height / 5
-
-		popup := lipgloss.NewLayer(m.renderMergePopup()).
-			X((m.width - popupWidth) / 2).
-			Y((m.height - popupHeight) / 2).
-			Z(1)
-
-		base := lipgloss.NewLayer(m.renderNormalView()).
-			Z(0)
-
-		c := lipgloss.NewCompositor(base, popup)
-		v := tea.NewView(c.Render())
-		v.AltScreen = true
-		v.MouseMode = tea.MouseModeCellMotion
-		return v
-	}
-
-	if m.stashBranchPopup.active {
-		popupWidth := m.width / 3
-		popupHeight := m.height / 8
-
-		popup := lipgloss.NewLayer(m.renderStashBranchPopup()).
-			X((m.width - popupWidth) / 2).
-			Y((m.height - popupHeight) / 2).
-			Z(1)
-
-		base := lipgloss.NewLayer(m.renderNormalView()).
-			Z(0)
-
-		c := lipgloss.NewCompositor(base, popup)
-		v := tea.NewView(c.Render())
-		v.AltScreen = true
-		v.MouseMode = tea.MouseModeCellMotion
-		return v
-	}
-
-	if m.stashClearConfirm {
-		popupWidth := m.width / 3
-		popupHeight := m.height / 8
-
-		popup := lipgloss.NewLayer(m.renderStashClearConfirmPopup()).
-			X((m.width - popupWidth) / 2).
-			Y((m.height - popupHeight) / 2).
-			Z(1)
-
-		base := lipgloss.NewLayer(m.renderNormalView()).
-			Z(0)
-
-		c := lipgloss.NewCompositor(base, popup)
-		v := tea.NewView(c.Render())
-		v.AltScreen = true
-		v.MouseMode = tea.MouseModeCellMotion
-		return v
-	}
-
-	if m.dropConfirm {
-		popupWidth := m.width / 3
-		popupHeight := m.height / 8
-
-		popup := lipgloss.NewLayer(m.renderDropConfirmPopup()).
-			X((m.width - popupWidth) / 2).
-			Y((m.height - popupHeight) / 2).
-			Z(1)
-
-		base := lipgloss.NewLayer(m.renderNormalView()).
-			Z(0)
-
-		c := lipgloss.NewCompositor(base, popup)
-		v := tea.NewView(c.Render())
-		v.AltScreen = true
-		v.MouseMode = tea.MouseModeCellMotion
-		return v
-	}
-
-	if m.deleteBranchConfirm {
-		popupWidth := m.width / 3
-		popupHeight := m.height / 8
-
-		popup := lipgloss.NewLayer(m.renderDeleteBranchConfirmPopup()).
-			X((m.width - popupWidth) / 2).
-			Y((m.height - popupHeight) / 2).
-			Z(1)
-
-		base := lipgloss.NewLayer(m.renderNormalView()).
-			Z(0)
-
-		c := lipgloss.NewCompositor(base, popup)
-		v := tea.NewView(c.Render())
-		v.AltScreen = true
-		v.MouseMode = tea.MouseModeCellMotion
-		return v
-	}
-
-	if m.restoreFileConfirm {
-		popupWidth := m.width / 3
-		popupHeight := m.height / 8
-
-		popup := lipgloss.NewLayer(m.renderRestoreFileConfirmPopup()).
-			X((m.width - popupWidth) / 2).
-			Y((m.height - popupHeight) / 2).
-			Z(1)
-
-		base := lipgloss.NewLayer(m.renderNormalView()).
-			Z(0)
-
-		c := lipgloss.NewCompositor(base, popup)
-		v := tea.NewView(c.Render())
-		v.AltScreen = true
-		v.MouseMode = tea.MouseModeCellMotion
-		return v
-	}
-
-	if m.dropStashConfirm {
-		popupWidth := m.width / 3
-		popupHeight := m.height / 8
-
-		popup := lipgloss.NewLayer(m.renderDropStashConfirmPopup()).
-			X((m.width - popupWidth) / 2).
-			Y((m.height - popupHeight) / 2).
-			Z(1)
-
-		base := lipgloss.NewLayer(m.renderNormalView()).
-			Z(0)
-
-		c := lipgloss.NewCompositor(base, popup)
-		v := tea.NewView(c.Render())
-		v.AltScreen = true
-		v.MouseMode = tea.MouseModeCellMotion
-		return v
-	}
-
-	if m.popStashConfirm {
-		popupWidth := m.width / 3
-		popupHeight := m.height / 8
-
-		popup := lipgloss.NewLayer(m.renderPopStashConfirmPopup()).
-			X((m.width - popupWidth) / 2).
-			Y((m.height - popupHeight) / 2).
-			Z(1)
-
-		base := lipgloss.NewLayer(m.renderNormalView()).
-			Z(0)
-
-		c := lipgloss.NewCompositor(base, popup)
-		v := tea.NewView(c.Render())
-		v.AltScreen = true
-		v.MouseMode = tea.MouseModeCellMotion
-		return v
-	}
-
-	if m.amendConfirm {
-		popupWidth := m.width / 3
-		popupHeight := m.height / 8
-
-		popup := lipgloss.NewLayer(m.renderAmendConfirmPopup()).
-			X((m.width - popupWidth) / 2).
-			Y((m.height - popupHeight) / 2).
-			Z(1)
-
-		base := lipgloss.NewLayer(m.renderNormalView()).
-			Z(0)
-
-		c := lipgloss.NewCompositor(base, popup)
-		v := tea.NewView(c.Render())
-		v.AltScreen = true
-		v.MouseMode = tea.MouseModeCellMotion
-		return v
-	}
-
-	if m.inputPopup.active {
-		popupWidth := m.width / 3
-		popupHeight := m.height / 8
-
-		popup := lipgloss.NewLayer(m.renderInputPopup()).
-			X((m.width - popupWidth) / 2).
-			Y((m.height - popupHeight) / 2).
-			Z(1)
-
-		base := lipgloss.NewLayer(m.renderNormalView()).
-			Z(0)
-
-		c := lipgloss.NewCompositor(base, popup)
-		v := tea.NewView(c.Render())
-		v.AltScreen = true
-		v.MouseMode = tea.MouseModeCellMotion
-		return v
+	// Popups are checked in order and at most one is ever open, since each
+	// one swallows input while it's up. The order below is therefore
+	// presentation-only, not a precedence rule.
+	switch {
+	case m.commitPopup.active:
+		return m.overlay(m.renderPopup(), 4, 4)
+	case m.tagPopup.active:
+		return m.overlay(m.renderTagPopup(), 4, 4)
+	case m.mergePopup.active:
+		return m.overlay(m.renderMergePopup(), 3, 5)
+	case m.stashBranchPopup.active:
+		return m.overlay(m.renderStashBranchPopup(), 3, 8)
+	case m.confirm.active:
+		return m.overlay(m.renderConfirm(), 3, 8)
+	case m.inputPopup.active:
+		return m.overlay(m.renderInputPopup(), 3, 8)
 	}
 
 	v := tea.NewView(m.renderNormalView())
@@ -367,92 +138,39 @@ func (m Model) View() tea.View {
 	return v
 }
 
-func (m *Model) renderInitRepoConfirmPopup() string {
-	help := lipgloss.NewStyle().Foreground(m.theme.Muted).
-		Render("y/enter create · n/esc quit")
-
-	return lipgloss.NewStyle().
-		Width(m.width / 3).
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(m.theme.FocusBorder).
-		Render("Not a git repository. Create a new git repository?\n\n" + help)
+// overlay centers a popup on top of the normal UI. wDiv and hDiv are the
+// fractions of the window the popup is assumed to occupy: they decide
+// where it is placed, not how big it is, since each renderXxx sizes
+// itself.
+func (m Model) overlay(content string, wDiv, hDiv int) tea.View {
+	popup := lipgloss.NewLayer(content).
+		X((m.width - m.width/wDiv) / 2).
+		Y((m.height - m.height/hDiv) / 2).
+		Z(1)
+	base := lipgloss.NewLayer(m.renderNormalView()).Z(0)
+	v := tea.NewView(lipgloss.NewCompositor(base, popup).Render())
+	v.AltScreen = true
+	v.MouseMode = tea.MouseModeCellMotion
+	return v
 }
 
-func (m *Model) renderStashClearConfirmPopup() string {
-	help := lipgloss.NewStyle().Foreground(m.theme.Muted).
-		Render("y/enter confirm · n/esc cancel")
-
+// renderConfirm draws the open confirmation prompt: the question, its
+// optional detail, and the key hint.
+func (m *Model) renderConfirm() string {
+	c := &m.confirm
+	help := c.help
+	if help == "" {
+		help = defaultConfirmHelp
+	}
+	body := c.title
+	if c.detail != "" {
+		body += "\n\n" + c.detail
+	}
 	return lipgloss.NewStyle().
 		Width(m.width / 3).
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(m.theme.FocusBorder).
-		Render("Remove all stash entries?\n\n" + help)
-}
-
-func (m *Model) renderDropConfirmPopup() string {
-	help := lipgloss.NewStyle().Foreground(m.theme.Muted).
-		Render("y/enter confirm · n/esc cancel")
-
-	return lipgloss.NewStyle().
-		Width(m.width / 3).
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(m.theme.FocusBorder).
-		Render("Drop last commit?\n\n" + m.dropSubject + "\n\n" + help)
-}
-
-func (m *Model) renderDeleteBranchConfirmPopup() string {
-	help := lipgloss.NewStyle().Foreground(m.theme.Muted).
-		Render("y/enter confirm · n/esc cancel")
-
-	return lipgloss.NewStyle().
-		Width(m.width / 3).
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(m.theme.FocusBorder).
-		Render("Delete branch '" + m.deleteBranchName + "'?\n\n" + help)
-}
-
-func (m *Model) renderRestoreFileConfirmPopup() string {
-	help := lipgloss.NewStyle().Foreground(m.theme.Muted).
-		Render("y/enter confirm · n/esc cancel")
-
-	return lipgloss.NewStyle().
-		Width(m.width / 3).
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(m.theme.FocusBorder).
-		Render("Restore '" + m.restoreFilePath + "'?\n\n" + help)
-}
-
-func (m *Model) renderDropStashConfirmPopup() string {
-	help := lipgloss.NewStyle().Foreground(m.theme.Muted).
-		Render("y/enter confirm · n/esc cancel")
-
-	return lipgloss.NewStyle().
-		Width(m.width / 3).
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(m.theme.FocusBorder).
-		Render("Drop stash '" + m.dropStashMessage + "'?\n\n" + help)
-}
-
-func (m *Model) renderPopStashConfirmPopup() string {
-	help := lipgloss.NewStyle().Foreground(m.theme.Muted).
-		Render("y/enter confirm · n/esc cancel")
-
-	return lipgloss.NewStyle().
-		Width(m.width / 3).
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(m.theme.FocusBorder).
-		Render("Pop stash '" + m.popStashMessage + "'?\n\n" + help)
-}
-
-func (m *Model) renderAmendConfirmPopup() string {
-	help := lipgloss.NewStyle().Foreground(m.theme.Muted).
-		Render("y/enter confirm · n/esc cancel")
-
-	return lipgloss.NewStyle().
-		Width(m.width / 3).
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(m.theme.FocusBorder).
-		Render("Amend commit '" + m.amendSubject + "'?\n\n" + help)
+		Render(body + "\n\n" + lipgloss.NewStyle().Foreground(m.theme.Muted).Render(help))
 }
 
 func (m *Model) renderStashBranchPopup() string {

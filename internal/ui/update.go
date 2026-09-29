@@ -39,124 +39,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	if m.initRepoConfirm {
-		if key, ok := msg.(tea.KeyMsg); ok {
-			switch key.String() {
-			case "y", "enter":
-				m.initRepoConfirm = false
-				m.inputPopup.action = inputActionInitRepo
-				m.inputPopup.title = "Branch name? (leave empty for git's default)"
-				m.inputPopup.input.SetWidth(m.width / 3)
-				m.inputPopup.input.CharLimit = 100
-				m.inputPopup.input.SetValue("")
-				m.inputPopup.input.Prompt = "branch> "
-				m.inputPopup.input.Placeholder = "branch name (optional)"
-				m.inputPopup.input.Focus()
-				m.inputPopup.active = true
-				return m, textinput.Blink
-			case "n", "esc":
-				return m, tea.Quit
-			}
-		}
-		return m, nil
-	}
-
-	if m.stashClearConfirm {
-		if key, ok := msg.(tea.KeyMsg); ok {
-			switch key.String() {
-			case "y", "enter":
-				m.stashClearConfirm = false
-				return m, m.handleClearStash
-			case "n", "esc":
-				m.stashClearConfirm = false
-				return m, nil
-			}
-		}
-		return m, nil
-	}
-
-	if m.dropConfirm {
-		if key, ok := msg.(tea.KeyMsg); ok {
-			switch key.String() {
-			case "y", "enter":
-				m.dropConfirm = false
-				return m, m.handleDropCommit
-			case "n", "esc":
-				m.dropConfirm = false
-				return m, nil
-			}
-		}
-		return m, nil
-	}
-
-	if m.deleteBranchConfirm {
-		if key, ok := msg.(tea.KeyMsg); ok {
-			switch key.String() {
-			case "y", "enter":
-				m.deleteBranchConfirm = false
-				return m, m.handleDeleteBranch
-			case "n", "esc":
-				m.deleteBranchConfirm = false
-				return m, nil
-			}
-		}
-		return m, nil
-	}
-
-	if m.restoreFileConfirm {
-		if key, ok := msg.(tea.KeyMsg); ok {
-			switch key.String() {
-			case "y", "enter":
-				m.restoreFileConfirm = false
-				return m, m.handleRestoreFile
-			case "n", "esc":
-				m.restoreFileConfirm = false
-				return m, nil
-			}
-		}
-		return m, nil
-	}
-
-	if m.dropStashConfirm {
-		if key, ok := msg.(tea.KeyMsg); ok {
-			switch key.String() {
-			case "y", "enter":
-				m.dropStashConfirm = false
-				return m, m.handleDropStash
-			case "n", "esc":
-				m.dropStashConfirm = false
-				return m, nil
-			}
-		}
-		return m, nil
-	}
-
-	if m.popStashConfirm {
-		if key, ok := msg.(tea.KeyMsg); ok {
-			switch key.String() {
-			case "y", "enter":
-				m.popStashConfirm = false
-				return m, m.handlePopStash
-			case "n", "esc":
-				m.popStashConfirm = false
-				return m, nil
-			}
-		}
-		return m, nil
-	}
-
-	if m.amendConfirm {
-		if key, ok := msg.(tea.KeyMsg); ok {
-			switch key.String() {
-			case "y", "enter":
-				m.amendConfirm = false
-				return m, m.handleAmend
-			case "n", "esc":
-				m.amendConfirm = false
-				return m, nil
-			}
-		}
-		return m, nil
+	if m.confirm.active {
+		// Settle the prompt before returning, since Go doesn't order the
+		// copy of m against the call below.
+		cmd := m.updateConfirm(msg)
+		return m, cmd
 	}
 
 	if m.mergePopup.active {
@@ -348,7 +235,28 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case notRepoMsg:
 		m.inRepo = false
-		m.initRepoConfirm = true
+		m.ask(confirm{
+			title: "Not a git repository. Create a new git repository?",
+			help:  "y/enter create · n/esc quit",
+			// Confirming doesn't init directly - it asks for the branch
+			// name first, so this opens the input popup rather than
+			// running a git command.
+			onYes: func(mm *Model) tea.Cmd {
+				mm.inputPopup.action = inputActionInitRepo
+				mm.inputPopup.title = "Branch name? (leave empty for git's default)"
+				mm.inputPopup.input.SetWidth(mm.width / 3)
+				mm.inputPopup.input.CharLimit = 100
+				mm.inputPopup.input.SetValue("")
+				mm.inputPopup.input.Prompt = "branch> "
+				mm.inputPopup.input.Placeholder = "branch name (optional)"
+				mm.inputPopup.input.Focus()
+				mm.inputPopup.active = true
+				return textinput.Blink
+			},
+			// Declining leaves nothing to show, so quit rather than
+			// sitting on an empty window.
+			onNo: func(*Model) tea.Cmd { return tea.Quit },
+		})
 		return m, nil
 
 	case repoReadyMsg:
@@ -489,31 +397,43 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "d":
 			// Delete Branch
 			if m.focus == focusBranch && len(m.branches) > 0 {
-				m.deleteBranchConfirm = true
-				m.deleteBranchName = m.branches[m.idxBranch].Name
+				m.ask(confirm{
+					title: "Delete branch '" + m.branches[m.idxBranch].Name + "'?",
+					onYes: deferred(m.handleDeleteBranch),
+				})
 			}
 			// Restore file
 			if m.focus == focusStag {
 				if idx, ok := m.selectedFile(); ok {
-					m.restoreFileConfirm = true
-					m.restoreFilePath = m.files[idx].Path
+					m.ask(confirm{
+						title: "Restore '" + m.files[idx].Path + "'?",
+						onYes: deferred(m.handleRestoreFile),
+					})
 				}
 			}
 			// Drop stash
 			if m.focus == focusStash && len(m.stashes) > 0 {
-				m.dropStashConfirm = true
-				m.dropStashMessage = m.stashes[m.idxStash].Message
+				m.ask(confirm{
+					title: "Drop stash '" + m.stashes[m.idxStash].Message + "'?",
+					onYes: deferred(m.handleDropStash),
+				})
 			}
 			// Drop last commit
 			if m.focus == focusLog && len(m.log) > 0 {
-				m.dropConfirm = true
-				m.dropSubject = m.log[0].Subject
+				m.ask(confirm{
+					title:  "Drop last commit?",
+					detail: m.log[0].Subject,
+					onYes:  deferred(m.handleDropCommit),
+				})
 			}
 
 		case "D":
 			// Clear Stash
 			if m.focus == focusStash && len(m.stashes) > 0 {
-				m.stashClearConfirm = true
+				m.ask(confirm{
+					title: "Remove all stash entries?",
+					onYes: deferred(m.handleClearStash),
+				})
 			}
 
 		case "b":
@@ -611,14 +531,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "A":
 			// Amend commit
 			if m.focus == focusStag && len(m.files) > 0 && git.HasOneStaged(m.files) && len(m.log) > 0 {
-				m.amendConfirm = true
-				m.amendSubject = m.log[0].Subject
+				m.ask(confirm{
+					title: "Amend commit '" + m.log[0].Subject + "'?",
+					onYes: deferred(m.handleAmend),
+				})
 			}
 		case "p":
 			// Pop stash
 			if m.focus == focusStash && len(m.stashes) > 0 {
-				m.popStashConfirm = true
-				m.popStashMessage = m.stashes[m.idxStash].Message
+				m.ask(confirm{
+					title: "Pop stash '" + m.stashes[m.idxStash].Message + "'?",
+					onYes: deferred(m.handlePopStash),
+				})
 			}
 		case "c":
 			// Commit
@@ -911,6 +835,42 @@ func (m Model) showDiff() tea.Cmd {
 		}
 		return nil
 	}
+}
+
+// ask opens a confirmation prompt, replacing whatever was open (nothing
+// else can be, since a prompt swallows every message while it's up).
+func (m *Model) ask(c confirm) {
+	c.active = true
+	m.confirm = c
+}
+
+// updateConfirm handles a key while a confirmation prompt is open. It
+// swallows every other message as well, so nothing can slip past the
+// modal to the main switch behind it.
+func (m *Model) updateConfirm(msg tea.Msg) tea.Cmd {
+	key, ok := msg.(tea.KeyMsg)
+	if !ok {
+		return nil
+	}
+	var run func(*Model) tea.Cmd
+	switch key.String() {
+	case "y", "enter":
+		run = m.confirm.onYes
+	case "n", "esc":
+		run = m.confirm.onNo
+	default:
+		return nil
+	}
+	// Clear the whole struct, not just active: onYes holds the selection
+	// the question refers to, and leaving it around would let a later
+	// keypress fire it against a stale question.
+	m.confirm = confirm{}
+	if run == nil {
+		return nil
+	}
+	// Run the action now, on the model Update is about to return, so that
+	// any state it changes is part of that model.
+	return run(m)
 }
 
 func (m *Model) handleDeleteBranch() tea.Msg {
