@@ -54,22 +54,12 @@ func visibleWindow(n, height, idx int) (start, end int) {
 // resize (including the panelFullScreen zeroing-out of the rest) is picked
 // up for free from the same Height/Width fields the renderers already use.
 func (m *Model) panelAt(x, y int) (target, row int, ok bool) {
-	// Each list panel's size comes from m.panels, so this only has to say
-	// which panel is which and what it holds.
-	lists := []struct {
-		focus      int
-		idx, count int
-	}{
-		{focusStag, m.idxFiles, len(m.treeRows)},
-		{focusBranch, m.idxBranch, len(m.branches)},
-		{focusLog, m.idxLog, len(m.log)},
-		{focusStash, m.idxStash, len(m.stashes)},
-	}
-
+	// The list panels are the contiguous range focusStag..focusStash, so the
+	// slice index doubles as the focus constant.
 	top := 0
 	maxWidth := 0
-	for _, l := range lists {
-		p := m.panels[l.focus]
+	for focus := focusStag; focus < focusDiff; focus++ {
+		p := m.panels[focus]
 		if p.width > maxWidth {
 			maxWidth = p.width
 		}
@@ -82,14 +72,15 @@ func (m *Model) panelAt(x, y int) (target, row int, ok bool) {
 		}
 		if y == top || y == top+p.height-1 {
 			// Border row: still a hit on the panel, no row under it.
-			return l.focus, -1, true
+			return focus, -1, true
 		}
-		start, _ := visibleWindow(l.count, p.height, l.idx)
+		count := m.rowCount(focus)
+		start, _ := visibleWindow(count, p.height, p.idx)
 		row = start + (y - top - 1)
-		if row >= l.count {
+		if row >= count {
 			row = -1
 		}
-		return l.focus, row, true
+		return focus, row, true
 	}
 
 	diffX := 0
@@ -312,10 +303,10 @@ func (m *Model) renderFiles() string {
 	yellow := lipgloss.NewStyle().Foreground(m.theme.Conflict)
 	dirStyle := lipgloss.NewStyle().Foreground(m.theme.Accent)
 
-	start, end := visibleWindow(len(m.treeRows), p.height, m.idxFiles)
+	start, end := visibleWindow(len(m.treeRows), p.height, m.panels[focusStag].idx)
 	for i := start; i < end; i++ {
 		row := m.treeRows[i]
-		selected := i == m.idxFiles && m.focus == focusStag
+		selected := i == m.panels[focusStag].idx && m.focus == focusStag
 
 		if row.isDir {
 			glyph := "▾"
@@ -412,7 +403,7 @@ func (m *Model) renderBranches() string {
 	}
 	var names []string
 
-	start, end := visibleWindow(len(m.branches), p.height, m.idxBranch)
+	start, end := visibleWindow(len(m.branches), p.height, m.panels[focusBranch].idx)
 	agoColor := lipgloss.NewStyle().Foreground(m.theme.Muted)
 	for i := start; i < end; i++ {
 		b := m.branches[i]
@@ -421,7 +412,7 @@ func (m *Model) renderBranches() string {
 		if a := timeAgo(b.CommitTime, time.Now()); a != "" {
 			ago = fmt.Sprintf("%4s ", a)
 		}
-		if m.idxBranch == i && m.focus == focusBranch {
+		if m.panels[focusBranch].idx == i && m.focus == focusBranch {
 			// Deliberately plain text here (time included): coloring any of
 			// it and only then wrapping in Width(...).Background(...) would
 			// hit the nested-reset issue seen in log/stash - see there.
@@ -546,14 +537,14 @@ func (m *Model) renderLog() string {
 		return ""
 	}
 
-	start, end := visibleWindow(len(m.log), p.height, m.idxLog)
+	start, end := visibleWindow(len(m.log), p.height, m.panels[focusLog].idx)
 	dateColor := lipgloss.NewStyle().Foreground(m.theme.Date)
 	shortHashColor := lipgloss.NewStyle().Foreground(m.theme.Hash)
 	aheadColor := lipgloss.NewStyle().Foreground(m.theme.Ahead)
 	tagColor := lipgloss.NewStyle().Foreground(m.theme.Accent)
 	authorColor := lipgloss.NewStyle().Foreground(m.theme.Author)
 
-	lo, hi := m.squashAnchor, m.idxLog
+	lo, hi := m.squashAnchor, m.panels[focusLog].idx
 	if lo > hi {
 		lo, hi = hi, lo
 	}
@@ -565,7 +556,7 @@ func (m *Model) renderLog() string {
 		if names := m.tags[l.Hash]; len(names) > 0 {
 			tagStr = "(" + strings.Join(names, ", ") + ")"
 		}
-		if (i == m.idxLog && m.focus == focusLog) || (m.squashMarking && i >= lo && i <= hi) {
+		if (i == m.panels[focusLog].idx && m.focus == focusLog) || (m.squashMarking && i >= lo && i <= hi) {
 			// Deliberately plain text here: dateColor/shortHashColor each
 			// end in their own ANSI reset, which - nested inside this
 			// Background() - would wipe the highlight out from under the
@@ -621,14 +612,14 @@ func (m *Model) renderStash() string {
 		return ""
 	}
 
-	start, end := visibleWindow(len(m.stashes), p.height, m.idxStash)
+	start, end := visibleWindow(len(m.stashes), p.height, m.panels[focusStash].idx)
 	dateColor := lipgloss.NewStyle().Foreground(m.theme.Date)
 	refColor := lipgloss.NewStyle().Foreground(m.theme.Hash)
 
 	var entrys []string
 	for i := start; i < end; i++ {
 		s := m.stashes[i]
-		if i == m.idxStash && m.focus == focusStash {
+		if i == m.panels[focusStash].idx && m.focus == focusStash {
 			// Deliberately plain text here: dateColor/refColor each end in
 			// their own ANSI reset, which - nested inside this Background()
 			// - would wipe the highlight out from under the date and
