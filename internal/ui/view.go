@@ -54,21 +54,22 @@ func visibleWindow(n, height, idx int) (start, end int) {
 // resize (including the panelFullScreen zeroing-out of the rest) is picked
 // up for free from the same Height/Width fields the renderers already use.
 func (m *Model) panelAt(x, y int) (target, row int, ok bool) {
-	type listPanel struct {
-		focus         int
-		height, width int
-		idx, count    int
-	}
-	panels := []listPanel{
-		{focusStag, m.filesHeight, m.filesWidth, m.idxFiles, len(m.treeRows)},
-		{focusBranch, m.branchHeight, m.branchWidth, m.idxBranch, len(m.branches)},
-		{focusLog, m.logHeight, m.logWidth, m.idxLog, len(m.log)},
-		{focusStash, m.stashHeight, m.stashWidth, m.idxStash, len(m.stashes)},
+	// Each list panel's size comes from m.panels, so this only has to say
+	// which panel is which and what it holds.
+	lists := []struct {
+		focus      int
+		idx, count int
+	}{
+		{focusStag, m.idxFiles, len(m.treeRows)},
+		{focusBranch, m.idxBranch, len(m.branches)},
+		{focusLog, m.idxLog, len(m.log)},
+		{focusStash, m.idxStash, len(m.stashes)},
 	}
 
 	top := 0
 	maxWidth := 0
-	for _, p := range panels {
+	for _, l := range lists {
+		p := m.panels[l.focus]
 		if p.width > maxWidth {
 			maxWidth = p.width
 		}
@@ -81,14 +82,14 @@ func (m *Model) panelAt(x, y int) (target, row int, ok bool) {
 		}
 		if y == top || y == top+p.height-1 {
 			// Border row: still a hit on the panel, no row under it.
-			return p.focus, -1, true
+			return l.focus, -1, true
 		}
-		start, _ := visibleWindow(p.count, p.height, p.idx)
+		start, _ := visibleWindow(l.count, p.height, l.idx)
 		row = start + (y - top - 1)
-		if row >= p.count {
+		if row >= l.count {
 			row = -1
 		}
-		return p.focus, row, true
+		return l.focus, row, true
 	}
 
 	diffX := 0
@@ -301,7 +302,8 @@ type fileIcon struct {
 }
 
 func (m *Model) renderFiles() string {
-	if m.filesHeight <= 0 || m.filesWidth <= 0 {
+	p := m.panels[focusStag]
+	if p.height <= 0 || p.width <= 0 {
 		return ""
 	}
 	var s []string
@@ -310,7 +312,7 @@ func (m *Model) renderFiles() string {
 	yellow := lipgloss.NewStyle().Foreground(m.theme.Conflict)
 	dirStyle := lipgloss.NewStyle().Foreground(m.theme.Accent)
 
-	start, end := visibleWindow(len(m.treeRows), m.filesHeight, m.idxFiles)
+	start, end := visibleWindow(len(m.treeRows), p.height, m.idxFiles)
 	for i := start; i < end; i++ {
 		row := m.treeRows[i]
 		selected := i == m.idxFiles && m.focus == focusStag
@@ -325,10 +327,10 @@ func (m *Model) renderFiles() string {
 				// Deliberately plain text here: coloring the dir name first
 				// and only then wrapping in Width(...).Background(...) would
 				// hit the same nested-reset issue as the file rows below.
-				s = append(s, lipgloss.NewStyle().Width(m.filesWidth).Background(m.theme.Accent).Render(label))
+				s = append(s, lipgloss.NewStyle().Width(p.width).Background(m.theme.Accent).Render(label))
 				continue
 			}
-			s = append(s, lipgloss.NewStyle().Width(m.filesWidth).Render(dirStyle.Render(label)))
+			s = append(s, lipgloss.NewStyle().Width(p.width).Render(dirStyle.Render(label)))
 			continue
 		}
 
@@ -354,7 +356,7 @@ func (m *Model) renderFiles() string {
 			// Width(...).Background(...) would hit the same nested-reset
 			// issue as log/stash - see there. The icon is therefore left
 			// uncolored as well - its ANSI reset would wipe the highlight.
-			s = append(s, lipgloss.NewStyle().Width(m.filesWidth).Background(m.theme.Accent).Render(indent+stag+worktree+" "+icon+" "+path))
+			s = append(s, lipgloss.NewStyle().Width(p.width).Background(m.theme.Accent).Render(indent+stag+worktree+" "+icon+" "+path))
 			continue
 		}
 
@@ -379,13 +381,13 @@ func (m *Model) renderFiles() string {
 		if hasIcon {
 			icon = lipgloss.NewStyle().Foreground(fileIcon.c).Render(icon)
 		}
-		s = append(s, lipgloss.NewStyle().Width(m.filesWidth).Render(indent+stag+worktree+" "+icon+" "+path))
+		s = append(s, lipgloss.NewStyle().Width(p.width).Render(indent+stag+worktree+" "+icon+" "+path))
 	}
 
 	// The outer style deliberately has no Width of its own - see the note
 	// on renderStash.
 	if len(s) == 0 {
-		s = append(s, lipgloss.NewStyle().Width(m.filesWidth).Render(""))
+		s = append(s, lipgloss.NewStyle().Width(p.width).Render(""))
 	}
 
 	if m.focus == focusStag {
@@ -393,23 +395,24 @@ func (m *Model) renderFiles() string {
 			Border(lipgloss.NormalBorder(), true).
 			BorderForeground(m.theme.FocusBorder).
 			Bold(true).
-			Height(m.filesHeight).
+			Height(p.height).
 			Render(strings.Join(s, "\n"))
 	}
 
 	return lipgloss.NewStyle().
 		Border(lipgloss.NormalBorder(), true).
-		Height(m.filesHeight).
+		Height(p.height).
 		Render(strings.Join(s, "\n"))
 }
 
 func (m *Model) renderBranches() string {
-	if m.branchHeight <= 0 || m.branchWidth <= 0 {
+	p := m.panels[focusBranch]
+	if p.height <= 0 || p.width <= 0 {
 		return ""
 	}
 	var names []string
 
-	start, end := visibleWindow(len(m.branches), m.branchHeight, m.idxBranch)
+	start, end := visibleWindow(len(m.branches), p.height, m.idxBranch)
 	agoColor := lipgloss.NewStyle().Foreground(m.theme.Muted)
 	for i := start; i < end; i++ {
 		b := m.branches[i]
@@ -430,7 +433,7 @@ func (m *Model) renderBranches() string {
 			if b.Current {
 				prefix = " * "
 			}
-			names = append(names, lipgloss.NewStyle().Width(m.branchWidth).Background(m.theme.Cursor).Render(prefix+row))
+			names = append(names, lipgloss.NewStyle().Width(p.width).Background(m.theme.Cursor).Render(prefix+row))
 			continue
 		}
 		name := b.Name
@@ -443,13 +446,13 @@ func (m *Model) renderBranches() string {
 		if track != "" {
 			row += " " + track
 		}
-		names = append(names, lipgloss.NewStyle().Width(m.branchWidth).Render(prefix+row))
+		names = append(names, lipgloss.NewStyle().Width(p.width).Render(prefix+row))
 	}
 
 	// The outer style deliberately has no Width of its own - see the note
 	// on renderStash.
 	if len(names) == 0 {
-		names = append(names, lipgloss.NewStyle().Width(m.branchWidth).Render(""))
+		names = append(names, lipgloss.NewStyle().Width(p.width).Render(""))
 	}
 
 	if m.focus == focusBranch {
@@ -457,13 +460,13 @@ func (m *Model) renderBranches() string {
 			Border(lipgloss.NormalBorder(), true).
 			BorderForeground(m.theme.FocusBorder).
 			Bold(true).
-			Height(m.branchHeight).
+			Height(p.height).
 			Render(strings.Join(names, "\n"))
 	}
 
 	return lipgloss.NewStyle().
 		Border(lipgloss.NormalBorder(), true).
-		Height(m.branchHeight).
+		Height(p.height).
 		Render(strings.Join(names, "\n"))
 }
 
@@ -538,11 +541,12 @@ func authorInitials(author string) string {
 }
 
 func (m *Model) renderLog() string {
-	if m.logHeight <= 0 || m.logWidth <= 0 {
+	p := m.panels[focusLog]
+	if p.height <= 0 || p.width <= 0 {
 		return ""
 	}
 
-	start, end := visibleWindow(len(m.log), m.logHeight, m.idxLog)
+	start, end := visibleWindow(len(m.log), p.height, m.idxLog)
 	dateColor := lipgloss.NewStyle().Foreground(m.theme.Date)
 	shortHashColor := lipgloss.NewStyle().Foreground(m.theme.Hash)
 	aheadColor := lipgloss.NewStyle().Foreground(m.theme.Ahead)
@@ -574,7 +578,7 @@ func (m *Model) renderLog() string {
 			if init := authorInitials(l.Author); init != "" {
 				plainLine += " " + init
 			}
-			entrys = append(entrys, lipgloss.NewStyle().Width(m.logWidth).Background(m.theme.Cursor).Render(plainLine+" "+l.Subject))
+			entrys = append(entrys, lipgloss.NewStyle().Width(p.width).Background(m.theme.Cursor).Render(plainLine+" "+l.Subject))
 			continue
 		}
 		date := dateColor.Render(l.Date)
@@ -590,33 +594,34 @@ func (m *Model) renderLog() string {
 		if init := authorInitials(l.Author); init != "" {
 			line += " " + authorColor.Render(init)
 		}
-		entrys = append(entrys, lipgloss.NewStyle().Width(m.logWidth).Render(line+" "+l.Subject))
+		entrys = append(entrys, lipgloss.NewStyle().Width(p.width).Render(line+" "+l.Subject))
 	}
 	// The outer style deliberately has no Width of its own - see the
 	// matching note in renderStash below.
 	if len(entrys) == 0 {
-		entrys = append(entrys, lipgloss.NewStyle().Width(m.logWidth).Render(""))
+		entrys = append(entrys, lipgloss.NewStyle().Width(p.width).Render(""))
 	}
 	if m.focus == focusLog {
 		return lipgloss.NewStyle().
 			Border(lipgloss.NormalBorder(), true).
 			BorderForeground(m.theme.FocusBorder).
 			Bold(true).
-			Height(m.logHeight).
+			Height(p.height).
 			Render(strings.Join(entrys, "\n"))
 	}
 	return lipgloss.NewStyle().
 		Border(lipgloss.NormalBorder(), true).
-		Height(m.logHeight).
+		Height(p.height).
 		Render(strings.Join(entrys, "\n"))
 }
 
 func (m *Model) renderStash() string {
-	if m.stashHeight <= 0 || m.stashWidth <= 0 {
+	p := m.panels[focusStash]
+	if p.height <= 0 || p.width <= 0 {
 		return ""
 	}
 
-	start, end := visibleWindow(len(m.stashes), m.stashHeight, m.idxStash)
+	start, end := visibleWindow(len(m.stashes), p.height, m.idxStash)
 	dateColor := lipgloss.NewStyle().Foreground(m.theme.Date)
 	refColor := lipgloss.NewStyle().Foreground(m.theme.Hash)
 
@@ -630,13 +635,13 @@ func (m *Model) renderStash() string {
 			// message the moment it's hit (\x1b[m clears every SGR
 			// attribute, not just foreground).
 			line := s.Ref + " " + s.Date + " " + s.Message
-			entrys = append(entrys, lipgloss.NewStyle().Width(m.stashWidth).Background(m.theme.Cursor).Render(line))
+			entrys = append(entrys, lipgloss.NewStyle().Width(p.width).Background(m.theme.Cursor).Render(line))
 			continue
 		}
 		date := dateColor.Render(s.Date)
 		ref := refColor.Render(s.Ref)
 		line := ref + " " + date + " " + s.Message
-		entrys = append(entrys, lipgloss.NewStyle().Width(m.stashWidth).Render(line))
+		entrys = append(entrys, lipgloss.NewStyle().Width(p.width).Render(line))
 	}
 	// The outer style deliberately has no Width of its own (re-applying
 	// Width on top of an already width-padded, already-styled line
@@ -644,19 +649,19 @@ func (m *Model) renderStash() string {
 	// means an empty list has nothing to establish the panel's width, so
 	// the border collapses to zero. Pad a single blank line to hold it.
 	if len(entrys) == 0 {
-		entrys = append(entrys, lipgloss.NewStyle().Width(m.stashWidth).Render(""))
+		entrys = append(entrys, lipgloss.NewStyle().Width(p.width).Render(""))
 	}
 	if m.focus == focusStash {
 		return lipgloss.NewStyle().
 			Border(lipgloss.NormalBorder(), true).
 			BorderForeground(m.theme.FocusBorder).
 			Bold(true).
-			Height(m.stashHeight).
+			Height(p.height).
 			Render(strings.Join(entrys, "\n"))
 	}
 	return lipgloss.NewStyle().
 		Border(lipgloss.NormalBorder(), true).
-		Height(m.stashHeight).
+		Height(p.height).
 		Render(strings.Join(entrys, "\n"))
 }
 
