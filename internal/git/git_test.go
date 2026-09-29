@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestParseStatus(t *testing.T) {
@@ -175,6 +176,28 @@ func TestInit(t *testing.T) {
 			t.Fatal("Init() left no branch checked out")
 		}
 	})
+}
+
+func TestBranchesCommitTime(t *testing.T) {
+	dir := initRepo(t)
+	branches, err := Branches(dir)
+	if err != nil {
+		t.Fatalf("Branches() error: %v", err)
+	}
+	cur := currentBranch(t, dir)
+	for _, b := range branches {
+		if b.Name != cur {
+			continue
+		}
+		if b.CommitTime.IsZero() {
+			t.Fatalf("CommitTime for %q is zero, want the tip's committer time", cur)
+		}
+		if d := time.Since(b.CommitTime); d < -time.Minute || d > 2*time.Minute {
+			t.Fatalf("CommitTime for %q = %v ago, want within the last 2 minutes", cur, d)
+		}
+		return
+	}
+	t.Fatalf("branch %q not found in Branches()", cur)
 }
 
 func TestStatusIntegration(t *testing.T) {
