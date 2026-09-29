@@ -34,6 +34,7 @@
 * [ ] Pull branch
 * [ ] Fetch branch
 * [ ] Set upstream branch
+* [x] Show last commit time per branch
 
 ## Log
 
