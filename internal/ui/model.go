@@ -143,13 +143,23 @@ type tagPopup struct {
 	hash string
 }
 
+// panel is the geometry of one focusable list panel. The files, branch,
+// log and stash panels show different data but are laid out identically,
+// so their size lives here instead of a height/width pair per panel.
+type panel struct {
+	height, width int
+}
+
 type Model struct {
 	dir string
 
-	files       []git.FileStatus
-	idxFiles    int
-	filesHeight int
-	filesWidth  int
+	// panels holds the size of each list panel, indexed by focus constant:
+	// panels[focusBranch] is the branch panel. focusDiff has no entry,
+	// because the diff panel's size lives in the viewport itself.
+	panels [focusCount]panel
+
+	files    []git.FileStatus
+	idxFiles int
 
 	// treeRows is the flattened file tree (directories interspersed with
 	// files) the files panel renders; idxFiles indexes it rather than files.
@@ -158,15 +168,11 @@ type Model struct {
 	treeRows  []fileRow
 	collapsed map[string]bool
 
-	branches     []git.BranchInfo
-	idxBranch    int
-	branchHeight int
-	branchWidth  int
+	branches  []git.BranchInfo
+	idxBranch int
 
-	log       []git.LogEntry
-	idxLog    int
-	logHeight int
-	logWidth  int
+	log    []git.LogEntry
+	idxLog int
 
 	// ahead is the set of log hashes the current branch carries but its
 	// upstream doesn't; their short hashes render in theme.Ahead.
@@ -181,10 +187,8 @@ type Model struct {
 	squashMarking bool
 	squashAnchor  int
 
-	stashes     []git.StashEntry
-	idxStash    int
-	stashHeight int
-	stashWidth  int
+	stashes  []git.StashEntry
+	idxStash int
 
 	// confirm is the modal "are you sure?" prompt. At most one is open at
 	// a time, so one value covers every destructive action instead of a
@@ -265,6 +269,55 @@ func tickCmd() tea.Cmd {
 	return tea.Tick(2*time.Second, func(time.Time) tea.Msg {
 		return tickMsg{}
 	})
+}
+
+// splitLayout is the share of the window each list panel gets in the split
+// view, as a percentage of height and of width. The four heights total 97%,
+// leaving room for the footer; the widths are all the same because the
+// panels are stacked down the left of the window.
+var splitLayout = [...]struct{ h, w int }{
+	focusStag:   {25, 45},
+	focusBranch: {15, 45},
+	focusLog:    {42, 45},
+	focusStash:  {15, 45},
+}
+
+// The diff panel's share of the window in the split view, as percentages
+// of height and width.
+const diffLayoutH, diffLayoutW = 90, 55
+
+// setSplitLayout lays the window out as the four list panels stacked down
+// the left with the diff alongside them. Resizing the window and leaving
+// fullscreen both come through here, so the two can't drift apart.
+func (m *Model) setSplitLayout(w, h int) {
+	for i, f := range splitLayout {
+		m.panels[i] = panel{height: h * f.h / 100, width: w * f.w / 100}
+	}
+	m.diff.SetHeight(h * diffLayoutH / 100)
+	m.diff.SetWidth(w * diffLayoutW / 100)
+}
+
+// setFullscreenLayout gives the whole window to the focused panel and
+// collapses every other one to nothing, so the focused panel is the only
+// thing left on screen.
+func (m *Model) setFullscreenLayout(focus, w, h int) {
+	for i := range m.panels {
+		switch {
+		case i == focusDiff:
+			// The diff panel's size lives in the viewport, handled below.
+		case i == focus:
+			m.panels[i] = panel{height: h, width: w}
+		default:
+			m.panels[i] = panel{}
+		}
+	}
+	if focus == focusDiff {
+		m.diff.SetHeight(h)
+		m.diff.SetWidth(w)
+		return
+	}
+	m.diff.SetHeight(0)
+	m.diff.SetWidth(0)
 }
 
 func (m *Model) Refresh() tea.Cmd {
