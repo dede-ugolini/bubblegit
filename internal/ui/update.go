@@ -18,6 +18,25 @@ import (
 // receiver a closure would mutate a copy that is already gone by the time
 // it runs, and the change would be silently dropped.
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	// The tick is handled ahead of everything below, including the popups and
+	// squash marking, each of which swallows every message it receives while
+	// it is open. A tickMsg case further down the switch was therefore only
+	// ever reached while no popup happened to be open, so opening one stopped
+	// the timer for good and background polling never came back - opening one
+	// being exactly what a commit message or a merge prompt asks you to do.
+	//
+	// A tick is not a key press and no popup has anything to do with it, so
+	// there is nothing to defer to it.
+	if _, ok := msg.(tickMsg); ok {
+		// While no repository exists yet (still asking to create one or
+		// entering the branch name) the git commands would all fail, so
+		// keep refreshing on the timer alone.
+		if !m.inRepo {
+			return m, tickCmd()
+		}
+		return m, tea.Sequence(m.Refresh(), tickCmd())
+	}
+
 	if m.squashMarking {
 		if key, ok := msg.(tea.KeyMsg); ok {
 			switch key.String() {
@@ -266,15 +285,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case repoReadyMsg:
 		m.inRepo = true
 		return m, m.Refresh()
-
-	case tickMsg:
-		// While no repository exists yet (still asking to create one or
-		// entering the branch name) the git commands would all fail, so
-		// keep refreshing on the timer alone.
-		if !m.inRepo {
-			return m, tickCmd()
-		}
-		return m, tea.Sequence(m.Refresh(), tickCmd())
 
 	case filesMsg:
 		m.files = []git.FileStatus(msg)
