@@ -318,7 +318,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.height = msg.Height
 		m.width = msg.Width
-		m.setSplitLayout(msg.Width, msg.Height)
+		m.setLayout(m.mode)
 		m.ready = true
 		return m, nil
 
@@ -541,17 +541,15 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, textinput.Blink
 			}
 
-		case "+":
-			if !m.panelFullScreen {
-				m.panelFullScreen = true
-				m.setFullscreenLayout(m.focus, m.width, m.height)
-				return m, m.showDiff()
+		// + and - step through the layouts: normal, middle, fullscreen. The
+		// diff has to be re-rendered either way, since its width changes.
+		case "+", "-":
+			dir := 1
+			if msg.String() == "-" {
+				dir = -1
 			}
-
-		case "-":
-			if m.panelFullScreen {
-				m.panelFullScreen = false
-				m.setSplitLayout(m.width, m.height)
+			if next, ok := m.mode.step(dir); ok {
+				m.setLayout(next)
 				return m, m.showDiff()
 			}
 
@@ -646,19 +644,19 @@ func (m *Model) showDiff() tea.Cmd {
 			// priority order, so exactly one diff is computed per file.
 			if file.Staged() {
 				if m.useDelta {
-					diff, err = git.DiffDeltaStaged(m.dir, file.Path, m.panelFullScreen, m.diff.Width())
+					diff, err = git.DiffDeltaStaged(m.dir, file.Path, m.mode.full(), m.diff.Width())
 				} else {
 					diff, err = git.DiffStaged(m.dir, file.Path)
 				}
 			} else if file.Untracked() {
 				if m.useDelta {
-					diff, err = git.DiffDeltaUntracked(m.dir, file.Path, m.panelFullScreen, m.diff.Width())
+					diff, err = git.DiffDeltaUntracked(m.dir, file.Path, m.mode.full(), m.diff.Width())
 				} else {
 					diff, err = git.DiffUntracked(m.dir, file.Path)
 				}
 			} else if file.Unstaged() {
 				if m.useDelta {
-					diff, err = git.DiffDelta(m.dir, file.Path, m.panelFullScreen, m.diff.Width())
+					diff, err = git.DiffDelta(m.dir, file.Path, m.mode.full(), m.diff.Width())
 				} else {
 					diff, err = git.Diff(m.dir, file.Path)
 				}
@@ -677,7 +675,7 @@ func (m *Model) showDiff() tea.Cmd {
 				err  error
 			)
 			if m.useDelta {
-				diff, err = git.DiffBranchDelta(m.dir, m.panelFullScreen, m.diff.Width())
+				diff, err = git.DiffBranchDelta(m.dir, m.mode.full(), m.diff.Width())
 			} else {
 				diff, err = git.DiffBranch(m.dir)
 			}
@@ -695,7 +693,7 @@ func (m *Model) showDiff() tea.Cmd {
 			)
 			hash := m.log[m.panels[focusLog].idx].Hash
 			if m.useDelta {
-				diff, err = git.ShowDelta(m.dir, hash, m.panelFullScreen, m.diff.Width())
+				diff, err = git.ShowDelta(m.dir, hash, m.mode.full(), m.diff.Width())
 			} else {
 				diff, err = git.Show(m.dir, hash)
 			}
@@ -713,7 +711,7 @@ func (m *Model) showDiff() tea.Cmd {
 			)
 			ref := m.stashes[m.panels[focusStash].idx].Ref
 			if m.useDelta {
-				diff, err = git.StashShowDelta(m.dir, ref, m.panelFullScreen, m.diff.Width())
+				diff, err = git.StashShowDelta(m.dir, ref, m.mode.full(), m.diff.Width())
 			} else {
 				diff, err = git.StashShow(m.dir, ref)
 			}

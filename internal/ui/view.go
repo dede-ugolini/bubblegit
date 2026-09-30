@@ -51,7 +51,7 @@ func visibleWindow(n, height, idx int) (start, end int) {
 // This mirrors renderNormalView's layout by construction: the four list
 // panels stack top-to-bottom in a left column of shared width, with the
 // diff panel to their right starting where that column ends - so a panel
-// resize (including the panelFullScreen zeroing-out of the rest) is picked
+// resize (including the layouts that zero out every other panel) is picked
 // up for free from the same Height/Width fields the renderers already use.
 func (m *Model) panelAt(x, y int) (target, row int, ok bool) {
 	// The list panels are the contiguous range focusStag..focusStash, so the
@@ -247,30 +247,34 @@ func (m *Model) renderTagPopup() string {
 }
 
 func (m *Model) renderNormalView() string {
-	var b strings.Builder
-
-	b.WriteString(m.renderFiles())
-	b.WriteString("\n")
-
-	b.WriteString(m.renderBranches())
-	b.WriteString("\n")
-
-	b.WriteString(m.renderLog())
-	b.WriteString("\n")
-
-	b.WriteString(m.renderStash())
+	// The four list panels are joined with newlines, but a layout that
+	// collapses one leaves it rendering as the empty string - and a blank
+	// line would then take its place, pushing every panel below it down the
+	// screen. So the separators follow the panels that are actually there.
+	rows := make([]string, 0, 4)
+	for _, r := range []string{m.renderFiles(), m.renderBranches(), m.renderLog(), m.renderStash()} {
+		if r != "" {
+			rows = append(rows, r)
+		}
+	}
+	b := strings.Join(rows, "\n")
 
 	if m.err != nil {
-		b.WriteString("\n")
-		b.WriteString(lipgloss.NewStyle().Foreground(m.theme.Error).Render(m.err.Error()))
+		b += "\n" + lipgloss.NewStyle().Foreground(m.theme.Error).Render(m.err.Error())
 	}
 
 	return lipgloss.JoinHorizontal(
-		lipgloss.Left, b.String(), m.renderDiff(),
+		lipgloss.Left, b, m.renderDiff(),
 	) + lipgloss.NewStyle().Width(m.width).Align(lipgloss.Center).Render("\n\n"+m.renderFooter())
 }
 
 func (m *Model) renderDiff() string {
+	// Same guard the list panels have: a layout that collapses the diff still
+	// needs to render nothing, and without this titledPanel would wrap the
+	// empty viewport in a degenerate three-line box.
+	if m.diff.Height() <= 0 || m.diff.Width() <= 0 {
+		return ""
+	}
 	// Width includes the borders, so m.diff.Width() is the whole panel and
 	// the viewport is padded to it.
 	return m.titledPanel(focusDiff, "Diff", m.diff.Width(), m.diff.Height(), m.diff.View())
