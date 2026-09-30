@@ -225,7 +225,9 @@ type Model struct {
 	width  int
 	height int
 
-	panelFullScreen bool
+	// mode is how much of the window the focused panel gets: the whole
+	// window in normal mode, half of it in middle, all of it in fullscreen.
+	mode layoutMode
 
 	// useDelta toggles between delta-rendered diffs and plain git output.
 	useDelta bool
@@ -300,6 +302,37 @@ var splitLayout = [...]struct{ h, w int }{
 // of height and width.
 const diffLayoutH, diffLayoutW = 90, 55
 
+// layoutMode is how much of the window the focused panel gets. The modes are
+// ordered by how much room they give it, so that stepping with + and - walks
+// the sequence in both directions.
+type layoutMode int
+
+const (
+	// layoutNormal stacks the four list panels down the left with the diff
+	// beside them, and is where the app starts.
+	layoutNormal layoutMode = iota
+	// layoutMiddle gives the focused panel the left half of the window at full
+	// height, with the diff in the right half.
+	layoutMiddle
+	// layoutFull gives the focused panel the whole window.
+	layoutFull
+)
+
+// step moves n modes along the sequence, reporting false if that would run off
+// either end, so + and - stop at the extremes rather than wrapping.
+func (m layoutMode) step(n int) (layoutMode, bool) {
+	next := int(m) + n
+	if next < 0 || next > int(layoutFull) {
+		return m, false
+	}
+	return layoutMode(next), true
+}
+
+// full reports whether the focused panel has the whole window to itself. This
+// is what tells the diff functions to render side by side: there's only room
+// for that when the diff has the window, not half of it.
+func (m layoutMode) full() bool { return m == layoutFull }
+
 // setSplitLayout lays the window out as the four list panels stacked down
 // the left with the diff alongside them. Resizing the window and leaving
 // fullscreen both come through here, so the two can't drift apart.
@@ -312,6 +345,56 @@ func (m *Model) setSplitLayout(w, h int) {
 	}
 	m.diff.SetHeight(h * diffLayoutH / 100)
 	m.diff.SetWidth(w * diffLayoutW / 100)
+}
+
+// setMiddleLayout gives the focused panel the left half of the window at full
+// height and the diff the right half, collapsing the three list panels that
+// aren't focused. A focused diff takes the left half instead and leaves the
+// right half empty, so the focused panel is always the one on the left.
+func (m *Model) setMiddleLayout(focus, w, h int) {
+	left := w / 2
+	for i := focusStag; i < focusDiff; i++ {
+		p := &m.panels[i]
+		// Geometry only, so a mode change leaves each cursor where the user
+		// left it - same as the other two layouts.
+		if i == focus {
+			// A list panel's width is its body's: the border adds the two
+			// columns on either side, so the box needs the half-width less
+			// them to come out at half the window. Clamped at 1, since a
+			// zero or negative width renders the panel as nothing at all -
+			// better a too-narrow box than no box.
+			p.height, p.width = h, max(left-2, 1)
+			continue
+		}
+		p.height, p.width = 0, 0
+	}
+	// The diff panel is the one panel whose width is the whole box, since its
+	// viewport is padded to it. Its height, by contrast, is the viewport
+	// inside the box, so the two border rows have to come off the window
+	// height to leave a box of h.
+	m.diff.SetHeight(max(h-2, 1))
+	if focus == focusDiff {
+		// The diff is the focused panel, so it's the one on the left.
+		m.diff.SetWidth(max(left, 1))
+		return
+	}
+	m.diff.SetWidth(max(w-left, 1))
+}
+
+// setLayout applies mode to the current window size. Resizing and changing
+// mode both come through here, so the three layouts can't drift apart - and
+// so a resize keeps whatever mode the user was in, which a direct
+// setSplitLayout call on WindowSizeMsg would not.
+func (m *Model) setLayout(mode layoutMode) {
+	m.mode = mode
+	switch mode {
+	case layoutMiddle:
+		m.setMiddleLayout(m.focus, m.width, m.height)
+	case layoutFull:
+		m.setFullscreenLayout(m.focus, m.width, m.height)
+	default:
+		m.setSplitLayout(m.width, m.height)
+	}
 }
 
 // setFullscreenLayout gives the whole window to the focused panel and
