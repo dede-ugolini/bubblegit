@@ -372,7 +372,8 @@ func (m *Model) renderFiles() string {
 	var s []string
 	red := lipgloss.NewStyle().Foreground(m.theme.Removed)
 	green := lipgloss.NewStyle().Foreground(m.theme.Added)
-	yellow := lipgloss.NewStyle().Foreground(m.theme.Conflict)
+	yellow := lipgloss.NewStyle().Foreground(m.theme.StagedModified)
+	conflict := lipgloss.NewStyle().Foreground(m.theme.Conflict)
 	dirStyle := lipgloss.NewStyle().Foreground(m.theme.Accent)
 
 	start, end := visibleWindow(len(m.treeRows), p.height, m.panels[focusStag].idx)
@@ -424,6 +425,14 @@ func (m *Model) renderFiles() string {
 		}
 
 		switch {
+		// Ahead of Staged, and for a reason: an unmerged path reports a
+		// non-space index byte, so Staged claims every conflict and would
+		// paint it green as though it were ready to commit.
+		case f.Conflicted():
+			stag = conflict.Render(stag)
+			worktree = conflict.Render(worktree)
+			path = conflict.Render(path)
+
 		case f.Untracked():
 			stag = red.Render(stag)
 			worktree = red.Render(worktree)

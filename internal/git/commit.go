@@ -89,9 +89,10 @@ func SquashCommits(dir, oldestHash string, count int, message string) error {
 	return rebaseRewrite(dir, msgFile, editor, "rebase", "-i", base)
 }
 
-// writeMsgFile writes message to a temp file for GIT_EDITOR to copy over
-// git's commit-message file, and returns its path. RewordCommit and
-// SquashCommits are the only callers; the caller owns removing the file.
+// writeMsgFile writes message to a temp file and returns its path. RewordCommit
+// and SquashCommits feed it to GIT_EDITOR, to copy over git's commit-message
+// file; MergeConflict feeds it to git as one side of a merge. Either way the
+// caller owns removing the file.
 func writeMsgFile(kind, message string) (string, error) {
 	f, err := os.CreateTemp("", "bubblegit-"+kind+"-*.txt")
 	if err != nil {
