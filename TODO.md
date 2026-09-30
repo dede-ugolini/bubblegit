@@ -45,7 +45,7 @@
 * [ ] View branch history
 * [ ] Compare commits
 * [ ] Compare branches
-* [ ] Checkout commit
+* [x] Checkout commit
 
 ## Commit
 
@@ -61,7 +61,7 @@
 * [ ] Split commit
 * [ ] Reset to commit
 * [ ] Revert commit
-* [ ] Checkout commit
+* [x] Checkout commit
 
 ## Stash
 

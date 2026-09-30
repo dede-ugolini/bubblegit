@@ -477,6 +477,68 @@ func TestCreateBranch(t *testing.T) {
 	}
 }
 
+func TestDetached(t *testing.T) {
+	t.Run("attached to a branch", func(t *testing.T) {
+		dir := initRepo(t)
+
+		if hash, ok := Detached(dir); ok {
+			t.Errorf("Detached() = %q, true, want not detached", hash)
+		}
+	})
+
+	t.Run("unborn HEAD", func(t *testing.T) {
+		dir := t.TempDir()
+		run(t, dir, "git", "init")
+
+		if hash, ok := Detached(dir); ok {
+			t.Errorf("Detached() = %q, true, want not detached", hash)
+		}
+	})
+
+	t.Run("detached at a commit", func(t *testing.T) {
+		dir := initRepo(t)
+		run(t, dir, "git", "commit", "-q", "--allow-empty", "-m", "second")
+		entries, err := Log(dir, "HEAD~1", 1)
+		if err != nil {
+			t.Fatalf("Log() error: %v", err)
+		}
+		want := entries[0].ShortHash
+
+		if err := Checkout(dir, "HEAD~1"); err != nil {
+			t.Fatalf("Checkout() error: %v", err)
+		}
+
+		hash, ok := Detached(dir)
+		if !ok {
+			t.Fatal("Detached() = not detached, want detached")
+		}
+		if hash != want {
+			t.Errorf("hash = %q, want %q", hash, want)
+		}
+	})
+
+	t.Run("no branch is current while detached", func(t *testing.T) {
+		// The synthetic "(HEAD detached at ...)" row that git emits must not
+		// be mistaken for a branch, or the branch panel would offer a
+		// checkout target that does not exist.
+		dir := initRepo(t)
+		run(t, dir, "git", "commit", "-q", "--allow-empty", "-m", "second")
+		if err := Checkout(dir, "HEAD~1"); err != nil {
+			t.Fatalf("Checkout() error: %v", err)
+		}
+
+		branches, err := Branches(dir)
+		if err != nil {
+			t.Fatalf("Branches() error: %v", err)
+		}
+		for _, b := range branches {
+			if b.Current {
+				t.Errorf("branch %q reported current while detached", b.Name)
+			}
+		}
+	})
+}
+
 func TestDeleteBranch(t *testing.T) {
 	t.Run("delete other branch", func(t *testing.T) {
 		dir := initRepo(t)
