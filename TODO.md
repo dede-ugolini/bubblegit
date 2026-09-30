@@ -17,7 +17,7 @@
 * [ ] Add file
 * [ ] Diff file
 * [x] Diff staged file
-* [ ] Resolve conflicted file
+* [x] Resolve conflicted file
 
 ## Branch
 

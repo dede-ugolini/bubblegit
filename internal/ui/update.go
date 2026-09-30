@@ -91,6 +91,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	if m.conflictPopup.active {
+		return m, m.updateConflict(msg)
+	}
+
 	if m.stashBranchPopup.active {
 		if key, ok := msg.(tea.KeyMsg); ok {
 			switch key.String() {
@@ -285,6 +289,29 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case repoReadyMsg:
 		m.inRepo = true
 		return m, m.Refresh()
+
+	case conflictMsg:
+		// Set directly rather than returning an errMsg, which is what
+		// case errMsg would do with it anyway: m.err is cleared by the next
+		// key press either way.
+		if msg.err != nil {
+			m.err = msg.err
+			return m, nil
+		}
+		if len(msg.file.Hunks) == 0 {
+			m.err = fmt.Errorf("%s has no conflicts to resolve", msg.path)
+			return m, nil
+		}
+		c := &m.conflictPopup
+		c.active = true
+		c.path = msg.path
+		c.file = msg.file
+		// Every hunk starts on ours, which is the zero value of Resolution:
+		// see conflictPopup.choices.
+		c.choices = make([]git.Resolution, len(msg.file.Hunks))
+		c.idx = 0
+		c.scroll = 0
+		return m, nil
 
 	case filesMsg:
 		m.files = []git.FileStatus(msg)
@@ -496,6 +523,15 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.collapsed[row.dir] = true
 					}
 					m.rebuildFileTree()
+				}
+			}
+			// Resolve a conflicted file, one hunk at a time. Checked after
+			// the directory toggle because a directory is never conflicted,
+			// and before anything else files-focused because on a conflicted
+			// path enter means resolve rather than diff.
+			if m.focus == focusStag {
+				if idx, ok := m.selectedFile(); ok && m.files[idx].Conflicted() {
+					return m, m.handleResolveConflict(m.files[idx].Path)
 				}
 			}
 			// Checkout Branch
@@ -1050,6 +1086,127 @@ func (m *Model) handleMerge(branch string, mode git.MergeMode) tea.Msg {
 		return errMsg{err}
 	}
 	return branchesMsg(branches)
+}
+
+// handleResolveConflict reads path's conflicts so the resolver can show them.
+// It runs git and writes temp files, so it is a command rather than something
+// done inline on the key press; the hunks come back as a conflictMsg.
+func (m *Model) handleResolveConflict(path string) tea.Cmd {
+	return func() tea.Msg {
+		file, err := git.MergeConflict(m.dir, path)
+		if err != nil {
+			return conflictMsg{path: path, err: err}
+		}
+		return conflictMsg{path: path, file: file}
+	}
+}
+
+// updateConflict handles a key while the resolver is open. Everything else,
+// including every other key, is dropped: a popup that let keys through would
+// act on the file the user had selected before opening it.
+func (m *Model) updateConflict(msg tea.Msg) tea.Cmd {
+	key, ok := msg.(tea.KeyMsg)
+	if !ok {
+		return nil
+	}
+
+	c := &m.conflictPopup
+	hunks := len(c.file.Hunks)
+	if hunks == 0 {
+		// Nothing to pick a side for. MergeConflict would normally have
+		// refused to open the popup, so this is only reachable if the file
+		// was resolved underneath us.
+		*c = conflictPopup{}
+		return nil
+	}
+
+	// setChoice records a resolution for the hunk under the cursor.
+	setChoice := func(r git.Resolution) {
+		c.choices[c.idx] = r
+	}
+	// cycle steps through ours, theirs, both, wrapping either way, which is
+	// the fastest way through a file whose hunks mostly want the same side.
+	cycle := func(step int) {
+		cur := 0
+		for i, r := range git.Resolutions {
+			if r == c.choices[c.idx] {
+				cur = i
+				break
+			}
+		}
+		setChoice(git.Resolutions[(cur+step+len(git.Resolutions))%len(git.Resolutions)])
+	}
+
+	switch key.String() {
+	case "up", "k":
+		c.idx = (c.idx - 1 + hunks) % hunks
+		c.scroll = 0
+	case "down", "j":
+		c.idx = (c.idx + 1) % hunks
+		c.scroll = 0
+	case "pgup":
+		c.scroll -= m.conflictDetailRows()
+	case "pgdown":
+		c.scroll += m.conflictDetailRows()
+	case "left", "h", "shift+tab":
+		cycle(-1)
+	case "right", "l", "tab":
+		cycle(1)
+	case "o":
+		setChoice(git.ResolveOurs)
+	case "t":
+		setChoice(git.ResolveTheirs)
+	case "b":
+		setChoice(git.ResolveBoth)
+	case "enter":
+		return m.saveConflict()
+	case "esc":
+		// Cleared rather than just deactivated, so that reopening starts from
+		// the hunks git reports now instead of the ones held here, which may
+		// be a merge that has since been redone.
+		*c = conflictPopup{}
+		return nil
+	}
+	m.clampConflictScroll()
+	return nil
+}
+
+// clampConflictScroll keeps the detail pane inside the selected hunk's text.
+// Called after every key, because moving to another hunk resets the offset and
+// paging can overshoot it.
+//
+// The limit is the pane's own height rather than the length of the text, so
+// that scrolling to the bottom shows the end of a short hunk instead of
+// refusing to move at all.
+func (m *Model) clampConflictScroll() {
+	c := &m.conflictPopup
+	body := conflictDetailLines(c.file.Hunks[c.idx], c.choices[c.idx])
+	limit := max(0, len(body)-m.conflictDetailRows())
+	if c.scroll > limit {
+		c.scroll = limit
+	}
+	if c.scroll < 0 {
+		c.scroll = 0
+	}
+}
+
+// saveConflict writes the resolved file and stages it. The popup closes first
+// so that a failure surfaces in the files panel behind it, which still shows
+// the path as conflicted, rather than behind a popup the user has to dismiss
+// to find out.
+func (m *Model) saveConflict() tea.Cmd {
+	path := m.conflictPopup.path
+	// Copied because the popup is cleared before the command runs, and
+	// ResolveFile is given the choices as they were when enter was pressed.
+	choices := append([]git.Resolution(nil), m.conflictPopup.choices...)
+	m.conflictPopup = conflictPopup{}
+
+	return tea.Sequence(func() tea.Msg {
+		if err := git.ResolveFile(m.dir, path, choices); err != nil {
+			return errMsg{err}
+		}
+		return nil
+	}, m.Refresh())
 }
 
 func (m *Model) handlePush(branch string) tea.Msg {

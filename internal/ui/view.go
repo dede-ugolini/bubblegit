@@ -9,6 +9,7 @@ import (
 
 	"bubblegit/internal/git"
 
+	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 )
@@ -125,6 +126,8 @@ func (m *Model) View() tea.View {
 		return m.overlay(m.renderTagPopup(), 4, 4)
 	case m.mergePopup.active:
 		return m.overlay(m.renderMergePopup(), 3, 5)
+	case m.conflictPopup.active:
+		return m.overlay(m.renderConflictPopup(), 2, 2)
 	case m.stashBranchPopup.active:
 		return m.overlay(m.renderStashBranchPopup(), 3, 8)
 	case m.confirm.active:
@@ -206,6 +209,140 @@ func (m *Model) renderMergePopup() string {
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(m.theme.FocusBorder).
 		Render(strings.Join(lines, "\n") + "\n\n" + help)
+}
+
+const (
+	// conflictListRows caps the hunk list so a file with many conflicts does
+	// not push the detail of the hunk under the cursor off the popup. The
+	// detail needs the room more: a side of a hunk is usually code, and code
+	// read a line at a time is the whole point of the pane.
+	conflictListRows = 5
+
+	// conflictMinDetail is the smallest the detail pane is allowed to get, so
+	// that a short window shows a stub rather than nothing at all.
+	conflictMinDetail = 3
+)
+
+// conflictDetailRows is how many lines the detail pane gets: half the window,
+// less the list, the borders and the blank line above the key hint.
+//
+// The count is arithmetic on the window rather than measured off the last
+// render, so that scrolling and drawing agree on it without the render having
+// to write back into the model to be looked at again.
+func (m *Model) conflictDetailRows() int {
+	rows := m.height/2 - conflictListRows - 4
+	if rows < conflictMinDetail {
+		return conflictMinDetail
+	}
+	return rows
+}
+
+// conflictDetailLines lays one hunk's sides out as a label, a rule and the
+// side's lines, chosen side first.
+//
+// The sides are interleaved rather than stacked ours/theirs/base, because what
+// a user is looking for is which lines differ between them, and a section cut
+// off by the next one is the part they cannot compare against it.
+func conflictDetailLines(h git.Hunk, chosen git.Resolution) []string {
+	type side struct {
+		label string
+		body  []string
+		// taken is whether this resolution keeps these lines, which is the
+		// one thing about a side worth picking out.
+		taken bool
+	}
+
+	sides := []side{
+		{"ours", h.Ours, chosen == git.ResolveOurs || chosen == git.ResolveBoth},
+		{"theirs", h.Theirs, chosen == git.ResolveTheirs || chosen == git.ResolveBoth},
+	}
+	// The ancestor comes last and only if there is one. Its absence is normal
+	// - an add/add conflict has no ancestor - and it is marked rather than
+	// hidden, so an empty section is visibly the file's doing and not the
+	// render's.
+	if h.HasBase {
+		sides = append(sides, side{"base", h.Base, false})
+	}
+
+	rule := strings.Repeat("─", 32)
+	var out []string
+	for i, s := range sides {
+		if i > 0 {
+			out = append(out, "")
+		}
+		marker := "  "
+		if s.taken {
+			marker = "▸ "
+		}
+		out = append(out, marker+s.label+" "+rule)
+		for _, line := range s.body {
+			out = append(out, "      "+line)
+		}
+	}
+	return out
+}
+
+// renderConflictPopup draws the resolver: the hunk list, then the sides of the
+// hunk under the cursor.
+func (m *Model) renderConflictPopup() string {
+	c := &m.conflictPopup
+	width := m.width / 2
+
+	accent := lipgloss.NewStyle().Foreground(m.theme.Accent)
+	muted := lipgloss.NewStyle().Foreground(m.theme.Muted)
+	added := lipgloss.NewStyle().Foreground(m.theme.Added)
+	conflict := lipgloss.NewStyle().Foreground(m.theme.Conflict)
+
+	// listRow is the fixed part of a list entry, colored per choice so the
+	// list is readable on its own without opening the detail.
+	listRow := func(i int) string {
+		return fmt.Sprintf("%d  %-6s", i+1, c.choices[i])
+	}
+
+	var lines []string
+	lines = append(lines, "Resolve conflicts: "+accent.Render(c.path))
+	lines = append(lines, "")
+
+	start := max(0, min(c.idx-(conflictListRows-1)/2, len(c.file.Hunks)-conflictListRows))
+	for i := start; i < len(c.file.Hunks) && i < start+conflictListRows; i++ {
+		if i == c.idx {
+			lines = append(lines, lipgloss.NewStyle().Width(width).
+				Background(m.theme.Accent).
+				Render("▸ "+listRow(i)))
+			continue
+		}
+		style := added
+		if c.choices[i] == git.ResolveOurs {
+			style = conflict
+		}
+		lines = append(lines, "  "+style.Render(listRow(i)))
+	}
+	if n := len(c.file.Hunks); n > conflictListRows {
+		lines = append(lines, muted.Render(fmt.Sprintf("  … %d of %d hunks", c.idx+1, n)))
+	}
+	lines = append(lines, "")
+
+	body := conflictDetailLines(c.file.Hunks[c.idx], c.choices[c.idx])
+
+	// A viewport so a hunk taller than the pane scrolls instead of pushing
+	// the key hint off the bottom of the popup. Its size is set here rather
+	// than stored on the model, which is why scrolling asks the same helper
+	// for its limit.
+	detail := viewport.New()
+	detail.SetContent(strings.Join(body, "\n"))
+	detail.SetWidth(width)
+	detail.SetHeight(m.conflictDetailRows())
+	detail.SetYOffset(c.scroll)
+	lines = append(lines, detail.View())
+
+	lines = append(lines, "", muted.Render(
+		"↑/k ↓/j hunk · ←/→ or o/t/b side · enter save · esc cancel"))
+
+	return lipgloss.NewStyle().
+		Width(width).
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(m.theme.FocusBorder).
+		Render(strings.Join(lines, "\n"))
 }
 
 func (m *Model) renderInputPopup() string {

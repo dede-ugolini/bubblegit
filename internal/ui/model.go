@@ -43,6 +43,15 @@ type (
 	// panels should refresh.
 	notRepoMsg   struct{}
 	repoReadyMsg struct{}
+
+	// conflictMsg carries a conflicted file's hunks back from the git layer,
+	// or the reason they could not be read. Reading them runs git and touches
+	// temp files, so it cannot happen inline on a key press.
+	conflictMsg struct {
+		path string
+		file *git.ConflictFile
+		err  error
+	}
 )
 
 const (
@@ -109,6 +118,34 @@ type mergePopup struct {
 
 	// branch is the branch being merged into the current branch.
 	branch string
+}
+
+// conflictPopup resolves a conflicted file one hunk at a time.
+//
+// It holds the whole file's conflicts rather than the one under the cursor,
+// because picking a side is per hunk but saving is per file: there is no
+// partial resolution to commit, so the hunk list and the detail of the
+// selected hunk are two views of one decision.
+type conflictPopup struct {
+	active bool
+
+	// path is the file being resolved and file its parsed hunks, both
+	// captured when the popup was opened. The files panel selection can move
+	// underneath, and the resolve has to stay about the file it was opened
+	// for.
+	path string
+	file *git.ConflictFile
+
+	// choices is one resolution per hunk. Every hunk starts on ResolveOurs
+	// rather than unset, so that saving without touching anything keeps our
+	// side of the merge - which is what entering and pressing enter again
+	// should mean - instead of failing at the last step.
+	choices []git.Resolution
+
+	// idx is the hunk the cursor is on, and scroll the first line of that
+	// hunk's detail pane that is visible.
+	idx    int
+	scroll int
 }
 
 // inputAction identifies which git action inputPopup should dispatch on
@@ -229,6 +266,8 @@ type Model struct {
 	inputPopup inputPopup
 
 	mergePopup mergePopup
+
+	conflictPopup conflictPopup
 
 	focus int
 	diff  viewport.Model
