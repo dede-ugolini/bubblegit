@@ -53,6 +53,8 @@ func visibleWindow(n, height, idx int) (start, end int) {
 // diff panel to their right starting where that column ends - so a panel
 // resize (including the layouts that zero out every other panel) is picked
 // up for free from the same Height/Width fields the renderers already use.
+// The diff panel is the exception, since its viewport's width and height
+// mean different things; see below.
 func (m *Model) panelAt(x, y int) (target, row int, ok bool) {
 	// The list panels are the contiguous range focusStag..focusStash, so the
 	// slice index doubles as the focus constant.
@@ -87,9 +89,16 @@ func (m *Model) panelAt(x, y int) (target, row int, ok bool) {
 	if maxWidth > 0 {
 		diffX = maxWidth + 2
 	}
+	// The diff panel's two numbers mean different things in each direction,
+	// which is the one place panelAt can't mirror the list panels' arithmetic
+	// directly. m.diff.Width() is the whole box, since renderDiff pads the
+	// viewport out to it, so no border has to be added; m.diff.Height() is
+	// the viewport inside the box, so the box is two rows taller. Adding the
+	// borders to the width made the hit box reach past the right edge, and
+	// omitting them from the height left the box's bottom rows unclickable.
 	if m.diff.Height() > 0 && m.diff.Width() > 0 &&
-		x >= diffX && x < diffX+m.diff.Width()+2 &&
-		y >= 0 && y < m.diff.Height() {
+		x >= diffX && x < diffX+m.diff.Width() &&
+		y >= 0 && y < m.diff.Height()+2 {
 		return focusDiff, -1, true
 	}
 
