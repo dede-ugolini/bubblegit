@@ -81,10 +81,34 @@ func Branches(dir string) ([]BranchInfo, error) {
 	return branches, nil
 }
 
-// Checkout switches the working tree to the given branch.
+// Checkout switches the working tree to the given branch. The argument is any
+// revision git accepts for `git checkout`, so passing a commit hash detaches
+// HEAD at that commit.
 func Checkout(dir, branch string) error {
 	_, err := runGitWrite(dir, "checkout", branch)
 	return err
+}
+
+// Detached reports whether HEAD points straight at a commit instead of at a
+// local branch, and the short hash of the commit it points at. It is the
+// inverse of Branches reporting any branch as Current.
+//
+// `git branch --show-current` prints the branch name and exits 0 whether or
+// not HEAD is detached, and prints nothing at all when it is, so an empty
+// result is the signal. It is also the one form that works on an unborn HEAD,
+// where `git rev-parse` fails outright; in that state the repo is not
+// detached, so a failure to resolve the hash is reported as not-detached
+// rather than as an error.
+func Detached(dir string) (string, bool) {
+	out, err := runGit(dir, "branch", "--show-current")
+	if err != nil || strings.TrimSpace(out) != "" {
+		return "", false
+	}
+	short, err := runGit(dir, "rev-parse", "--short", "HEAD")
+	if err != nil {
+		return "", false
+	}
+	return strings.TrimSpace(short), true
 }
 
 // CreateBranch create and checks out a new branch off the current HEAD.

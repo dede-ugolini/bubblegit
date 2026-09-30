@@ -679,19 +679,29 @@ func (m *Model) renderFooter() string {
 	if !m.useDelta {
 		mode = "git"
 	}
+	// Detached HEAD is global state, not per-panel, so it prefixes every
+	// footer's hints rather than being folded into one focus branch. It goes
+	// first because it is the one thing that changes what the other hints
+	// mean: while detached, "enter checkout" in the log panel is how the
+	// working tree got here, and the branch panel is the way back.
+	detached := ""
+	if m.detached != "" {
+		detached = lipgloss.NewStyle().Foreground(m.theme.Error).Render(
+			"detached HEAD at " + m.detached + " · ")
+	}
 	modeStr := helpStyle.Render("diff: " + mode + " · V toggle")
 	switch m.focus {
 	case focusStag:
-		return helpStyle.Render(fmt.Sprintf("↑/k ↓/j move · <space> stag · a stag/unstag all · d restore · t theme: %s · q quit", m.themeName)) + " · " + modeStr
+		return detached + helpStyle.Render(fmt.Sprintf("↑/k ↓/j move · <space> stag · a stag/unstag all · d restore · t theme: %s · q quit", m.themeName)) + " · " + modeStr
 	case focusBranch:
-		return helpStyle.Render(fmt.Sprintf("↑/k ↓/j move · enter checkout · n new branch · r rename · d delete · M merge · P push · R set remote · t theme: %s · q quit", m.themeName)) + " · " + modeStr
+		return detached + helpStyle.Render(fmt.Sprintf("↑/k ↓/j move · enter checkout · n new branch · r rename · d delete · M merge · P push · R set remote · t theme: %s · q quit", m.themeName)) + " · " + modeStr
 	case focusLog:
-		return helpStyle.Render(fmt.Sprintf("↑/k ↓/j move · pgup/pgdown scroll · r reword · S squash · esc cancel · d drop last · T tag · t theme: %s · q quit", m.themeName)) + " · " + modeStr
+		return detached + helpStyle.Render(fmt.Sprintf("↑/k ↓/j move · enter checkout · pgup/pgdown scroll · r reword · S squash · esc cancel · d drop last · T tag · t theme: %s · q quit", m.themeName)) + " · " + modeStr
 	case focusStash:
-		return helpStyle.Render(fmt.Sprintf("↑/k ↓/j move · enter apply · n new stash · p pop · b branch · d drop · D clear all · t theme: %s · q quit", m.themeName)) + " · " + modeStr
+		return detached + helpStyle.Render(fmt.Sprintf("↑/k ↓/j move · enter apply · n new stash · p pop · b branch · d drop · D clear all · t theme: %s · q quit", m.themeName)) + " · " + modeStr
 	case focusDiff:
-		return helpStyle.Render(fmt.Sprintf("↑/k ↓/j move · pgup/pgdown scroll · t theme: %s · q quit", m.themeName)) + " · " + modeStr
+		return detached + helpStyle.Render(fmt.Sprintf("↑/k ↓/j move · pgup/pgdown scroll · t theme: %s · q quit", m.themeName)) + " · " + modeStr
 	default:
-		return helpStyle.Render("t theme · q quit") + " · " + modeStr
+		return detached + helpStyle.Render("t theme · q quit") + " · " + modeStr
 	}
 }

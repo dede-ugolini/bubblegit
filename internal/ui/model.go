@@ -32,6 +32,12 @@ type (
 	errMsg      struct{ err error }
 	tickMsg     struct{}
 
+	// detachedMsg carries the short hash HEAD points at when it is not on a
+	// local branch, and the empty string when it is. Since it is sent on
+	// every refresh rather than only on the transition, the model always
+	// clears a stale hash when HEAD is reattached to a branch.
+	detachedMsg string
+
 	// notRepoMsg reports that the working directory is not a git
 	// repository; repoReadyMsg that it is (or has just become one) and the
 	// panels should refresh.
@@ -186,6 +192,12 @@ type Model struct {
 	collapsed map[string]bool
 
 	branches []git.BranchInfo
+
+	// detached is the short hash HEAD points at when it is not on a local
+	// branch, and the empty string when it is. While non-empty no branch in
+	// the branch panel is marked current, so the footer has to say where the
+	// working tree actually is.
+	detached string
 
 	log []git.LogEntry
 
@@ -499,6 +511,14 @@ func (m *Model) Refresh() tea.Cmd {
 				return errMsg{err}
 			}
 			return stashesMsg(stashes)
+		},
+		func() tea.Msg {
+			// Detection never fails, so this never reports an error: an
+			// attached HEAD just yields the empty string.
+			if hash, ok := git.Detached(m.dir); ok {
+				return detachedMsg(hash)
+			}
+			return detachedMsg("")
 		},
 	)
 }

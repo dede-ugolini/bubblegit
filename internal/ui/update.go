@@ -304,6 +304,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.clampCursors()
 		return m, nil
 
+	case detachedMsg:
+		m.detached = string(msg)
+		return m, nil
+
 	case diffMsg:
 		m.diff.SetContent(msg.diff)
 		return m, nil
@@ -486,11 +490,18 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			// Checkout Branch
 			if m.focus == focusBranch && len(m.branches) > 0 {
-				return m, m.handleCheckoutBranch
+				return m, tea.Sequence(m.handleCheckoutBranch, m.Refresh())
 			}
 			// Apply Stash
 			if m.focus == focusStash && len(m.stashes) > 0 {
 				return m, m.handleApplyStash
+			}
+			// Checkout commit, leaving HEAD detached at it. Unlike the
+			// destructive actions this asks for no confirmation, matching
+			// enter-to-checkout a branch: git itself refuses the checkout if
+			// it would discard local modifications.
+			if m.focus == focusLog && len(m.log) > 0 {
+				return m, tea.Sequence(m.handleCheckoutCommit, m.Refresh())
 			}
 		case "space":
 			// stage/unstage file
@@ -791,16 +802,32 @@ func (m *Model) handleRestoreFile() tea.Msg {
 	return filesMsg(files)
 }
 
+// handleCheckoutBranch checks out the branch panel's selected branch. As
+// with handleCheckoutCommit the caller sequences a Refresh on after, since a
+// checkout moves HEAD, the working tree and the index and so invalidates
+// every panel, not just the branch list.
 func (m *Model) handleCheckoutBranch() tea.Msg {
-	err := git.Checkout(m.dir, m.branches[m.panels[focusBranch].idx].Name)
-	if err != nil {
+	if err := git.Checkout(m.dir, m.branches[m.panels[focusBranch].idx].Name); err != nil {
 		return errMsg{err}
 	}
-	branches, err := git.Branches(m.dir)
-	if err != nil {
+	return nil
+}
+
+// handleCheckoutCommit checks the working tree out at the log panel's
+// selected commit, leaving HEAD detached at it. The caller sequences a
+// Refresh on after, so unlike the single-panel handlers this one does not
+// re-read the branches it just invalidated.
+//
+// It guards on an empty log itself rather than relying on the key handler's
+// len(m.log) > 0 check, so a stale keypress cannot index into nothing.
+func (m *Model) handleCheckoutCommit() tea.Msg {
+	if len(m.log) == 0 {
+		return nil
+	}
+	if err := git.Checkout(m.dir, m.log[m.panels[focusLog].idx].Hash); err != nil {
 		return errMsg{err}
 	}
-	return branchesMsg(branches)
+	return nil
 }
 
 func (m *Model) handleApplyStash() tea.Msg {
