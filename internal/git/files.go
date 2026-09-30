@@ -1,11 +1,5 @@
 package git
 
-import (
-	"fmt"
-	"os/exec"
-	"strings"
-)
-
 // FileStatus represents one line of `git status --porcelain` output.
 type FileStatus struct {
 	Index    byte
@@ -17,67 +11,37 @@ type FileStatus struct {
 
 // Add stages the given path
 func Add(dir, path string) error {
-	cmd := exec.Command("git", "add", "--", path)
-	cmd.Dir = dir
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("%s", strings.TrimSpace(string(out)))
-	}
-	return nil
+	_, err := runGitWrite(dir, "add", "--", path)
+	return err
 }
 
 // AddAll stages all path
 func AddAll(dir string) error {
-	cmd := exec.Command("git", "add", "-A")
-	cmd.Dir = dir
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("%s", strings.TrimSpace(string(out)))
-	}
-	return nil
+	_, err := runGitWrite(dir, "add", "-A")
+	return err
 }
 
 // Reset unstages the given path, leaving working tree changes intact.
 func Reset(dir, path string) error {
-	cmd := exec.Command("git", "reset", "--", path)
-	cmd.Dir = dir
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("%s", strings.TrimSpace(string(out)))
-	}
-	return nil
+	_, err := runGitWrite(dir, "reset", "--", path)
+	return err
 }
 
 func ResetAll(dir string) error {
-	cmd := exec.Command("git", "reset")
-	cmd.Dir = dir
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("%s", strings.TrimSpace(string(out)))
-	}
-	return nil
+	_, err := runGitWrite(dir, "reset")
+	return err
 }
 
 // Restore reverts the file to its HEAD state, discarding both staged and
 // unstaged changes.
 func Restore(dir, path string) error {
-	cmd := exec.Command("git", "restore", "--staged", "--worktree", "--", path)
-	cmd.Dir = dir
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("%s", strings.TrimSpace(string(out)))
-	}
-	return nil
+	_, err := runGitWrite(dir, "restore", "--staged", "--worktree", "--", path)
+	return err
 }
 
 func RestoreUntracked(dir, path string) error {
-	cmd := exec.Command("git", "clean", "-fd", path)
-	cmd.Dir = dir
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("%s", strings.TrimSpace(string(out)))
-	}
-	return nil
+	_, err := runGitWrite(dir, "clean", "-fd", path)
+	return err
 }
 
 // Untracked reports whether this file is untracked by git.

@@ -1,5 +1,9 @@
 # Git operations
 
+## Repository
+
+* [x] Create repository at startup when not in one
+
 ## Files
 
 * [ ] Restore even if the file is staged
@@ -13,6 +17,7 @@
 * [ ] Add file
 * [ ] Diff file
 * [x] Diff staged file
+* [x] Resolve conflicted file
 
 ## Branch
 
@@ -30,6 +35,7 @@
 * [ ] Pull branch
 * [ ] Fetch branch
 * [ ] Set upstream branch
+* [x] Show last commit time per branch
 
 ## Log
 
@@ -40,7 +46,7 @@
 * [ ] View branch history
 * [ ] Compare commits
 * [ ] Compare branches
-* [ ] Checkout commit
+* [x] Checkout commit
 
 ## Commit
 
@@ -56,7 +62,7 @@
 * [ ] Split commit
 * [ ] Reset to commit
 * [ ] Revert commit
-* [ ] Checkout commit
+* [x] Checkout commit
 
 ## Stash
 

@@ -10,18 +10,44 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
-func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+// Update handles a message and returns the updated model.
+//
+// Model is used through a pointer throughout, and that is load-bearing:
+// commands run after Update returns, so a model captured in a tea.Cmd is
+// only the live one if every method shares the same pointer. With a value
+// receiver a closure would mutate a copy that is already gone by the time
+// it runs, and the change would be silently dropped.
+func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	// The tick is handled ahead of everything below, including the popups and
+	// squash marking, each of which swallows every message it receives while
+	// it is open. A tickMsg case further down the switch was therefore only
+	// ever reached while no popup happened to be open, so opening one stopped
+	// the timer for good and background polling never came back - opening one
+	// being exactly what a commit message or a merge prompt asks you to do.
+	//
+	// A tick is not a key press and no popup has anything to do with it, so
+	// there is nothing to defer to it.
+	if _, ok := msg.(tickMsg); ok {
+		// While no repository exists yet (still asking to create one or
+		// entering the branch name) the git commands would all fail, so
+		// keep refreshing on the timer alone.
+		if !m.inRepo {
+			return m, tickCmd()
+		}
+		return m, tea.Sequence(m.Refresh(), tickCmd())
+	}
+
 	if m.squashMarking {
 		if key, ok := msg.(tea.KeyMsg); ok {
 			switch key.String() {
 			case "up", "k":
-				m.moveLog(-1)
+				m.move(focusLog, -1)
 				return m, m.showDiff()
 			case "down", "j":
-				m.moveLog(1)
+				m.move(focusLog, 1)
 				return m, m.showDiff()
 			case "S":
-				lo, hi := m.squashAnchor, m.idxLog
+				lo, hi := m.squashAnchor, m.panels[focusLog].idx
 				if lo > hi {
 					lo, hi = hi, lo
 				}
@@ -39,124 +65,34 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	if m.stashClearConfirm {
-		if key, ok := msg.(tea.KeyMsg); ok {
-			switch key.String() {
-			case "y", "enter":
-				m.stashClearConfirm = false
-				return m, m.handleClearStash
-			case "n", "esc":
-				m.stashClearConfirm = false
-				return m, nil
-			}
-		}
-		return m, nil
-	}
-
-	if m.dropConfirm {
-		if key, ok := msg.(tea.KeyMsg); ok {
-			switch key.String() {
-			case "y", "enter":
-				m.dropConfirm = false
-				return m, m.handleDropCommit
-			case "n", "esc":
-				m.dropConfirm = false
-				return m, nil
-			}
-		}
-		return m, nil
-	}
-
-	if m.deleteBranchConfirm {
-		if key, ok := msg.(tea.KeyMsg); ok {
-			switch key.String() {
-			case "y", "enter":
-				m.deleteBranchConfirm = false
-				return m, m.handleDeleteBranch
-			case "n", "esc":
-				m.deleteBranchConfirm = false
-				return m, nil
-			}
-		}
-		return m, nil
-	}
-
-	if m.restoreFileConfirm {
-		if key, ok := msg.(tea.KeyMsg); ok {
-			switch key.String() {
-			case "y", "enter":
-				m.restoreFileConfirm = false
-				return m, m.handleRestoreFile
-			case "n", "esc":
-				m.restoreFileConfirm = false
-				return m, nil
-			}
-		}
-		return m, nil
-	}
-
-	if m.dropStashConfirm {
-		if key, ok := msg.(tea.KeyMsg); ok {
-			switch key.String() {
-			case "y", "enter":
-				m.dropStashConfirm = false
-				return m, m.handleDropStash
-			case "n", "esc":
-				m.dropStashConfirm = false
-				return m, nil
-			}
-		}
-		return m, nil
-	}
-
-	if m.popStashConfirm {
-		if key, ok := msg.(tea.KeyMsg); ok {
-			switch key.String() {
-			case "y", "enter":
-				m.popStashConfirm = false
-				return m, m.handlePopStash
-			case "n", "esc":
-				m.popStashConfirm = false
-				return m, nil
-			}
-		}
-		return m, nil
-	}
-
-	if m.amendConfirm {
-		if key, ok := msg.(tea.KeyMsg); ok {
-			switch key.String() {
-			case "y", "enter":
-				m.amendConfirm = false
-				return m, m.handleAmend
-			case "n", "esc":
-				m.amendConfirm = false
-				return m, nil
-			}
-		}
-		return m, nil
+	if m.confirm.active {
+		return m, m.updateConfirm(msg)
 	}
 
 	if m.mergePopup.active {
 		if key, ok := msg.(tea.KeyMsg); ok {
 			switch key.String() {
 			case "up", "k":
-				m.mergePopup.idx = (m.mergePopup.idx - 1 + len(mergeModes)) % len(mergeModes)
+				m.mergePopup.idx = (m.mergePopup.idx - 1 + len(git.MergeModes)) % len(git.MergeModes)
 				return m, nil
 			case "down", "j":
-				m.mergePopup.idx = (m.mergePopup.idx + 1) % len(mergeModes)
+				m.mergePopup.idx = (m.mergePopup.idx + 1) % len(git.MergeModes)
 				return m, nil
 			case "enter":
-				mode := mergeModes[m.mergePopup.idx]
+				mode := git.MergeModes[m.mergePopup.idx]
 				branch := m.mergePopup.branch
 				m.mergePopup.active = false
-				return m, tea.Batch(func() tea.Msg { return m.handleMerge(branch, mode) }, m.Refresh())
+				return m, tea.Sequence(func() tea.Msg { return m.handleMerge(branch, mode) }, m.Refresh())
 			case "esc":
 				m.mergePopup.active = false
 				return m, nil
 			}
 		}
 		return m, nil
+	}
+
+	if m.conflictPopup.active {
+		return m, m.updateConflict(msg)
 	}
 
 	if m.stashBranchPopup.active {
@@ -169,7 +105,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				m.stashBranchPopup.input.Blur()
 				m.stashBranchPopup.active = false
-				return m, tea.Batch(m.handleStashBranch, m.Refresh())
+				return m, tea.Sequence(m.handleStashBranch, m.Refresh())
 			case "esc":
 				m.stashBranchPopup.input.Blur()
 				m.stashBranchPopup.active = false
@@ -191,7 +127,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.commitPopup.commitSummary.Blur()
 				m.commitPopup.commitMessage.Blur()
 				m.commitPopup.active = false
-				return m, tea.Batch(m.handleCommit, m.Refresh())
+				return m, tea.Sequence(m.handleCommit, m.Refresh())
 			case "tab":
 				if m.commitPopup.focus == commitFocusSummary {
 					m.commitPopup.commitSummary.Blur()
@@ -236,7 +172,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.tagPopup.tagName.Blur()
 				m.tagPopup.tagMessage.Blur()
 				m.tagPopup.active = false
-				return m, tea.Batch(m.handleTag, m.Refresh())
+				return m, tea.Sequence(m.handleTag, m.Refresh())
 			case "tab":
 				if m.tagPopup.focus == tagFocusName {
 					m.tagPopup.tagName.Blur()
@@ -299,9 +235,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						return m, nil
 					}
 					return m, m.handleSetRemote
+				case inputActionInitRepo:
+					// Empty branch name falls back to git's default.
+					return m, func() tea.Msg { return m.handleInitRepo(value) }
 				}
 				return m, nil
 			case "esc":
+				if m.inputPopup.action == inputActionInitRepo {
+					return m, tea.Quit
+				}
 				m.inputPopup.input.Blur()
 				m.inputPopup.active = false
 				return m, nil
@@ -318,19 +260,76 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.err = msg.err
 		return m, nil
 
-	case tickMsg:
-		return m, tea.Batch(m.Refresh(), tickCmd())
+	case notRepoMsg:
+		m.inRepo = false
+		m.ask(confirm{
+			title: "Not a git repository. Create a new git repository?",
+			help:  "y/enter create · n/esc quit",
+			// Confirming doesn't init directly - it asks for the branch
+			// name first, so this opens the input popup rather than
+			// running a git command.
+			onYes: func() tea.Msg {
+				m.inputPopup.action = inputActionInitRepo
+				m.inputPopup.title = "Branch name? (leave empty for git's default)"
+				m.inputPopup.input.SetWidth(m.width / 3)
+				m.inputPopup.input.CharLimit = 100
+				m.inputPopup.input.SetValue("")
+				m.inputPopup.input.Prompt = "branch> "
+				m.inputPopup.input.Placeholder = "branch name (optional)"
+				m.inputPopup.input.Focus()
+				m.inputPopup.active = true
+				return textinput.Blink
+			},
+			// Declining leaves nothing to show, so quit rather than
+			// sitting on an empty window.
+			onNo: tea.Quit,
+		})
+		return m, nil
+
+	case repoReadyMsg:
+		m.inRepo = true
+		return m, m.Refresh()
+
+	case conflictMsg:
+		// Set directly rather than returning an errMsg, which is what
+		// case errMsg would do with it anyway: m.err is cleared by the next
+		// key press either way.
+		if msg.err != nil {
+			m.err = msg.err
+			return m, nil
+		}
+		if len(msg.file.Hunks) == 0 {
+			m.err = fmt.Errorf("%s has no conflicts to resolve", msg.path)
+			return m, nil
+		}
+		c := &m.conflictPopup
+		c.active = true
+		c.path = msg.path
+		c.file = msg.file
+		// Every hunk starts on ours, which is the zero value of Resolution:
+		// see conflictPopup.choices.
+		c.choices = make([]git.Resolution, len(msg.file.Hunks))
+		c.idx = 0
+		c.scroll = 0
+		return m, nil
 
 	case filesMsg:
 		m.files = []git.FileStatus(msg)
+		m.rebuildFileTree()
 		return m, nil
 
 	case branchesMsg:
 		m.branches = []git.BranchInfo(msg)
+		m.clampCursors()
 		return m, nil
 
 	case logMsg:
 		m.log = []git.LogEntry(msg)
+		m.clampCursors()
+		return m, nil
+
+	case aheadMsg:
+		m.ahead = map[string]bool(msg)
 		return m, nil
 
 	case tagsMsg:
@@ -339,12 +338,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case stashesMsg:
 		m.stashes = []git.StashEntry(msg)
-		if m.idxStash >= len(m.stashes) {
-			m.idxStash = len(m.stashes) - 1
-		}
-		if m.idxStash < 0 {
-			m.idxStash = 0
-		}
+		m.clampCursors()
+		return m, nil
+
+	case detachedMsg:
+		m.detached = string(msg)
 		return m, nil
 
 	case diffMsg:
@@ -361,16 +359,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.height = msg.Height
 		m.width = msg.Width
-		m.filesHeight = msg.Height * 25 / 100
-		m.filesWidth = msg.Width * 45 / 100
-		m.branchHeight = msg.Height * 15 / 100
-		m.branchWidth = msg.Width * 45 / 100
-		m.logHeight = msg.Height * 42 / 100
-		m.logWidth = msg.Width * 45 / 100
-		m.stashHeight = msg.Height * 15 / 100
-		m.stashWidth = msg.Width * 45 / 100
-		m.diff.SetHeight(msg.Height * 90 / 100)
-		m.diff.SetWidth(msg.Width * 55 / 100)
+		m.setLayout(m.mode)
 		m.ready = true
 		return m, nil
 
@@ -404,66 +393,63 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, m.showDiff()
 
 		case "up", "k":
-			switch m.focus {
-			case focusStag:
-				m.moveFile(-1)
-			case focusBranch:
-				m.moveBranch(-1)
-			case focusLog:
-				m.moveLog(-1)
-			case focusStash:
-				m.moveStash(-1)
-			case focusDiff:
+			if m.focus == focusDiff {
 				var cmd tea.Cmd
 				m.diff, cmd = m.diff.Update(msg)
 				return m, cmd
 			}
+			m.move(m.focus, -1)
 			return m, m.showDiff()
 
 		case "down", "j":
-			switch m.focus {
-			case focusStag:
-				m.moveFile(1)
-			case focusBranch:
-				m.moveBranch(1)
-			case focusLog:
-				m.moveLog(1)
-			case focusStash:
-				m.moveStash(1)
-			case focusDiff:
+			if m.focus == focusDiff {
 				var cmd tea.Cmd
 				m.diff, cmd = m.diff.Update(msg)
 				return m, cmd
-
 			}
+			m.move(m.focus, 1)
 			return m, m.showDiff()
 
 		case "d":
 			// Delete Branch
 			if m.focus == focusBranch && len(m.branches) > 0 {
-				m.deleteBranchConfirm = true
-				m.deleteBranchName = m.branches[m.idxBranch].Name
+				m.ask(confirm{
+					title: "Delete branch '" + m.branches[m.panels[focusBranch].idx].Name + "'?",
+					onYes: m.handleDeleteBranch,
+				})
 			}
 			// Restore file
-			if m.focus == focusStag && len(m.files) > 0 {
-				m.restoreFileConfirm = true
-				m.restoreFilePath = m.files[m.idxFiles].Path
+			if m.focus == focusStag {
+				if idx, ok := m.selectedFile(); ok {
+					m.ask(confirm{
+						title: "Restore '" + m.files[idx].Path + "'?",
+						onYes: m.handleRestoreFile,
+					})
+				}
 			}
 			// Drop stash
 			if m.focus == focusStash && len(m.stashes) > 0 {
-				m.dropStashConfirm = true
-				m.dropStashMessage = m.stashes[m.idxStash].Message
+				m.ask(confirm{
+					title: "Drop stash '" + m.stashes[m.panels[focusStash].idx].Message + "'?",
+					onYes: m.handleDropStash,
+				})
 			}
 			// Drop last commit
 			if m.focus == focusLog && len(m.log) > 0 {
-				m.dropConfirm = true
-				m.dropSubject = m.log[0].Subject
+				m.ask(confirm{
+					title:  "Drop last commit?",
+					detail: m.log[0].Subject,
+					onYes:  m.handleDropCommit,
+				})
 			}
 
 		case "D":
 			// Clear Stash
 			if m.focus == focusStash && len(m.stashes) > 0 {
-				m.stashClearConfirm = true
+				m.ask(confirm{
+					title: "Remove all stash entries?",
+					onYes: m.handleClearStash,
+				})
 			}
 
 		case "b":
@@ -509,7 +495,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "r":
 			// Rename Branch
 			if m.focus == focusBranch && len(m.branches) > 0 {
-				old := m.branches[m.idxBranch].Name
+				old := m.branches[m.panels[focusBranch].idx].Name
 				m.inputPopup.action = inputActionRenameBranch
 				m.inputPopup.title = "Rename branch"
 				m.inputPopup.renameFrom = old
@@ -528,18 +514,47 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		case "enter":
+			// Expand/collapse file tree directory
+			if m.focus == focusStag && len(m.treeRows) > 0 {
+				if row := m.treeRows[m.panels[focusStag].idx]; row.isDir {
+					if m.collapsed[row.dir] {
+						delete(m.collapsed, row.dir)
+					} else {
+						m.collapsed[row.dir] = true
+					}
+					m.rebuildFileTree()
+				}
+			}
+			// Resolve a conflicted file, one hunk at a time. Checked after
+			// the directory toggle because a directory is never conflicted,
+			// and before anything else files-focused because on a conflicted
+			// path enter means resolve rather than diff.
+			if m.focus == focusStag {
+				if idx, ok := m.selectedFile(); ok && m.files[idx].Conflicted() {
+					return m, m.handleResolveConflict(m.files[idx].Path)
+				}
+			}
 			// Checkout Branch
 			if m.focus == focusBranch && len(m.branches) > 0 {
-				return m, m.handleCheckoutBranch
+				return m, tea.Sequence(m.handleCheckoutBranch, m.Refresh())
 			}
 			// Apply Stash
 			if m.focus == focusStash && len(m.stashes) > 0 {
 				return m, m.handleApplyStash
 			}
+			// Checkout commit, leaving HEAD detached at it. Unlike the
+			// destructive actions this asks for no confirmation, matching
+			// enter-to-checkout a branch: git itself refuses the checkout if
+			// it would discard local modifications.
+			if m.focus == focusLog && len(m.log) > 0 {
+				return m, tea.Sequence(m.handleCheckoutCommit, m.Refresh())
+			}
 		case "space":
 			// stage/unstage file
-			if m.focus == focusStag && len(m.files) > 0 {
-				return m, m.handleToggleStage
+			if m.focus == focusStag {
+				if _, ok := m.selectedFile(); ok {
+					return m, m.handleToggleStage
+				}
 			}
 		case "a":
 			// stage/unstage all
@@ -549,14 +564,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "A":
 			// Amend commit
 			if m.focus == focusStag && len(m.files) > 0 && git.HasOneStaged(m.files) && len(m.log) > 0 {
-				m.amendConfirm = true
-				m.amendSubject = m.log[0].Subject
+				m.ask(confirm{
+					title: "Amend commit '" + m.log[0].Subject + "'?",
+					onYes: m.handleAmend,
+				})
 			}
 		case "p":
 			// Pop stash
 			if m.focus == focusStash && len(m.stashes) > 0 {
-				m.popStashConfirm = true
-				m.popStashMessage = m.stashes[m.idxStash].Message
+				m.ask(confirm{
+					title: "Pop stash '" + m.stashes[m.panels[focusStash].idx].Message + "'?",
+					onYes: m.handlePopStash,
+				})
 			}
 		case "c":
 			// Commit
@@ -579,106 +598,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, textinput.Blink
 			}
 
-		case "+":
-			if !m.panelFullScreen {
-				m.panelFullScreen = true
-				switch m.focus {
-				case focusStag:
-					m.filesHeight = m.height
-					m.filesWidth = m.width
-
-					m.branchHeight = 0
-					m.branchWidth = 0
-
-					m.logHeight = 0
-					m.logWidth = 0
-
-					m.stashHeight = 0
-					m.stashWidth = 0
-
-					m.diff.SetHeight(0)
-					m.diff.SetWidth(0)
-				case focusBranch:
-					m.branchHeight = m.height
-					m.branchWidth = m.width
-
-					m.filesHeight = 0
-					m.filesWidth = 0
-
-					m.logHeight = 0
-					m.logWidth = 0
-
-					m.stashHeight = 0
-					m.stashWidth = 0
-
-					m.diff.SetHeight(0)
-					m.diff.SetWidth(0)
-				case focusLog:
-					m.logHeight = m.height
-					m.logWidth = m.width
-
-					m.filesHeight = 0
-					m.filesWidth = 0
-
-					m.branchHeight = 0
-					m.branchWidth = 0
-
-					m.stashHeight = 0
-					m.stashWidth = 0
-
-					m.diff.SetHeight(0)
-					m.diff.SetWidth(0)
-				case focusStash:
-					m.stashHeight = m.height
-					m.stashWidth = m.width
-
-					m.filesHeight = 0
-					m.filesWidth = 0
-
-					m.branchHeight = 0
-					m.branchWidth = 0
-
-					m.logHeight = 0
-					m.logWidth = 0
-
-					m.diff.SetHeight(0)
-					m.diff.SetWidth(0)
-				case focusDiff:
-					m.diff.SetHeight(m.height)
-					m.diff.SetWidth(m.width)
-
-					m.filesHeight = 0
-					m.filesWidth = 0
-
-					m.branchHeight = 0
-					m.branchWidth = 0
-
-					m.logHeight = 0
-					m.logWidth = 0
-
-					m.stashHeight = 0
-					m.stashWidth = 0
-				}
-				return m, m.showDiff()
+		// + and - step through the layouts: normal, middle, fullscreen. The
+		// diff has to be re-rendered either way, since its width changes.
+		case "+", "-":
+			dir := 1
+			if msg.String() == "-" {
+				dir = -1
 			}
-
-		case "-":
-			if m.panelFullScreen {
-				m.panelFullScreen = false
-				m.filesHeight = m.height * 25 / 100
-				m.filesWidth = m.width * 45 / 100
-
-				m.branchHeight = m.height * 15 / 100
-				m.branchWidth = m.width * 45 / 100
-
-				m.logHeight = m.height * 20 / 100
-				m.logWidth = m.width * 45 / 100
-
-				m.stashHeight = m.height * 15 / 100
-				m.stashWidth = m.width * 45 / 100
-
-				m.diff.SetHeight(m.height * 90 / 100)
-				m.diff.SetWidth(m.width * 55 / 100)
+			if next, ok := m.mode.step(dir); ok {
+				m.setLayout(next)
 				return m, m.showDiff()
 			}
 
@@ -700,20 +628,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Squash: start marking a range of commits to fold together.
 			if m.focus == focusLog && len(m.log) > 0 {
 				m.squashMarking = true
-				m.squashAnchor = m.idxLog
+				m.squashAnchor = m.panels[focusLog].idx
 			}
 
 		case "M":
 			if m.focus == focusBranch && len(m.branches) > 0 {
 				m.mergePopup.active = true
 				m.mergePopup.idx = 0
-				m.mergePopup.branch = m.branches[m.idxBranch].Name
+				m.mergePopup.branch = m.branches[m.panels[focusBranch].idx].Name
 			}
 
 		case "P":
 			if m.focus == focusBranch && len(m.branches) > 0 {
-				branch := m.branches[m.idxBranch].Name
-				return m, tea.Batch(func() tea.Msg { return m.handlePush(branch) }, m.Refresh())
+				branch := m.branches[m.panels[focusBranch].idx].Name
+				return m, tea.Sequence(func() tea.Msg { return m.handlePush(branch) }, m.Refresh())
 			}
 
 		case "R":
@@ -735,7 +663,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "T":
 			if m.focus == focusLog && len(m.log) > 0 {
 				m.tagPopup.active = true
-				m.tagPopup.hash = m.log[m.idxLog].Hash
+				m.tagPopup.hash = m.log[m.panels[focusLog].idx].Hash
 				m.tagPopup.focus = tagFocusName
 				m.tagPopup.tagName.SetWidth(m.width / 3)
 				m.tagPopup.tagMessage.SetWidth(m.width / 3)
@@ -753,18 +681,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) showDiff() tea.Cmd {
+func (m *Model) showDiff() tea.Cmd {
 	return func() tea.Msg {
 		switch m.focus {
 		case focusStag:
-			if len(m.files) <= 0 {
+			idx, ok := m.selectedFile()
+			if !ok {
 				return diffMsg{}
 			}
 			var (
 				diff string
 				err  error
 			)
-			file := m.files[m.idxFiles]
+			file := m.files[idx]
 			// Untracked() is also true for Unstaged() (an untracked file has
 			// no staged changes, so its worktree side is by definition
 			// unstaged) and a partially-staged file satisfies both Staged()
@@ -772,21 +701,21 @@ func (m Model) showDiff() tea.Cmd {
 			// priority order, so exactly one diff is computed per file.
 			if file.Staged() {
 				if m.useDelta {
-					diff, err = git.DiffDeltaStaged(m.dir, m.files[m.idxFiles].Path, m.panelFullScreen, m.diff.Width())
+					diff, err = git.DiffDeltaStaged(m.dir, file.Path, m.mode.full(), m.diff.Width())
 				} else {
-					diff, err = git.DiffStaged(m.dir, m.files[m.idxFiles].Path)
+					diff, err = git.DiffStaged(m.dir, file.Path)
 				}
 			} else if file.Untracked() {
 				if m.useDelta {
-					diff, err = git.DiffDeltaUntracked(m.dir, m.files[m.idxFiles].Path, m.panelFullScreen, m.diff.Width())
+					diff, err = git.DiffDeltaUntracked(m.dir, file.Path, m.mode.full(), m.diff.Width())
 				} else {
-					diff, err = git.DiffUntracked(m.dir, m.files[m.idxFiles].Path)
+					diff, err = git.DiffUntracked(m.dir, file.Path)
 				}
 			} else if file.Unstaged() {
 				if m.useDelta {
-					diff, err = git.DiffDelta(m.dir, m.files[m.idxFiles].Path, m.panelFullScreen, m.diff.Width())
+					diff, err = git.DiffDelta(m.dir, file.Path, m.mode.full(), m.diff.Width())
 				} else {
-					diff, err = git.Diff(m.dir, m.files[m.idxFiles].Path)
+					diff, err = git.Diff(m.dir, file.Path)
 				}
 			}
 
@@ -803,7 +732,7 @@ func (m Model) showDiff() tea.Cmd {
 				err  error
 			)
 			if m.useDelta {
-				diff, err = git.DiffBranchDelta(m.dir, m.panelFullScreen, m.diff.Width())
+				diff, err = git.DiffBranchDelta(m.dir, m.mode.full(), m.diff.Width())
 			} else {
 				diff, err = git.DiffBranch(m.dir)
 			}
@@ -819,10 +748,11 @@ func (m Model) showDiff() tea.Cmd {
 				diff string
 				err  error
 			)
+			hash := m.log[m.panels[focusLog].idx].Hash
 			if m.useDelta {
-				diff, err = git.ShowDelta(m.dir, m.log[m.idxLog].Hash, m.panelFullScreen, m.diff.Width())
+				diff, err = git.ShowDelta(m.dir, hash, m.mode.full(), m.diff.Width())
 			} else {
-				diff, err = git.Show(m.dir, m.log[m.idxLog].Hash)
+				diff, err = git.Show(m.dir, hash)
 			}
 			if err != nil {
 				return errMsg{err}
@@ -836,10 +766,11 @@ func (m Model) showDiff() tea.Cmd {
 				diff string
 				err  error
 			)
+			ref := m.stashes[m.panels[focusStash].idx].Ref
 			if m.useDelta {
-				diff, err = git.StashShowDelta(m.dir, m.stashes[m.idxStash].Ref, m.panelFullScreen, m.diff.Width())
+				diff, err = git.StashShowDelta(m.dir, ref, m.mode.full(), m.diff.Width())
 			} else {
-				diff, err = git.StashShow(m.dir, m.stashes[m.idxStash].Ref)
+				diff, err = git.StashShow(m.dir, ref)
 			}
 			if err != nil {
 				return errMsg{err}
@@ -850,8 +781,39 @@ func (m Model) showDiff() tea.Cmd {
 	}
 }
 
+// ask opens a confirmation prompt, replacing whatever was open (nothing
+// else can be, since a prompt swallows every message while it's up).
+func (m *Model) ask(c confirm) {
+	c.active = true
+	m.confirm = c
+}
+
+// updateConfirm handles a key while a confirmation prompt is open. It
+// swallows every other message as well, so nothing can slip past the
+// modal to the main switch behind it.
+func (m *Model) updateConfirm(msg tea.Msg) tea.Cmd {
+	key, ok := msg.(tea.KeyMsg)
+	if !ok {
+		return nil
+	}
+	var run tea.Cmd
+	switch key.String() {
+	case "y", "enter":
+		run = m.confirm.onYes
+	case "n", "esc":
+		run = m.confirm.onNo
+	default:
+		return nil
+	}
+	// Clear the whole struct, not just active: onYes holds the selection
+	// the question refers to, and leaving it around would let a later
+	// keypress fire it against a stale question.
+	m.confirm = confirm{}
+	return run
+}
+
 func (m *Model) handleDeleteBranch() tea.Msg {
-	branch := m.branches[m.idxBranch].Name
+	branch := m.branches[m.panels[focusBranch].idx].Name
 	err := git.DeleteBranch(m.dir, branch)
 	if err != nil {
 		return errMsg{err}
@@ -864,13 +826,17 @@ func (m *Model) handleDeleteBranch() tea.Msg {
 }
 
 func (m *Model) handleRestoreFile() tea.Msg {
-	if m.files[m.idxFiles].Untracked() {
-		err := git.RestoreUntracked(m.dir, m.files[m.idxFiles].Path)
+	idx, ok := m.selectedFile()
+	if !ok {
+		return nil
+	}
+	if m.files[idx].Untracked() {
+		err := git.RestoreUntracked(m.dir, m.files[idx].Path)
 		if err != nil {
 			return errMsg{err}
 		}
 	} else {
-		err := git.Restore(m.dir, m.files[m.idxFiles].Path)
+		err := git.Restore(m.dir, m.files[idx].Path)
 		if err != nil {
 			return errMsg{err}
 		}
@@ -882,20 +848,36 @@ func (m *Model) handleRestoreFile() tea.Msg {
 	return filesMsg(files)
 }
 
+// handleCheckoutBranch checks out the branch panel's selected branch. As
+// with handleCheckoutCommit the caller sequences a Refresh on after, since a
+// checkout moves HEAD, the working tree and the index and so invalidates
+// every panel, not just the branch list.
 func (m *Model) handleCheckoutBranch() tea.Msg {
-	err := git.Checkout(m.dir, m.branches[m.idxBranch].Name)
-	if err != nil {
+	if err := git.Checkout(m.dir, m.branches[m.panels[focusBranch].idx].Name); err != nil {
 		return errMsg{err}
 	}
-	branches, err := git.Branches(m.dir)
-	if err != nil {
+	return nil
+}
+
+// handleCheckoutCommit checks the working tree out at the log panel's
+// selected commit, leaving HEAD detached at it. The caller sequences a
+// Refresh on after, so unlike the single-panel handlers this one does not
+// re-read the branches it just invalidated.
+//
+// It guards on an empty log itself rather than relying on the key handler's
+// len(m.log) > 0 check, so a stale keypress cannot index into nothing.
+func (m *Model) handleCheckoutCommit() tea.Msg {
+	if len(m.log) == 0 {
+		return nil
+	}
+	if err := git.Checkout(m.dir, m.log[m.panels[focusLog].idx].Hash); err != nil {
 		return errMsg{err}
 	}
-	return branchesMsg(branches)
+	return nil
 }
 
 func (m *Model) handleApplyStash() tea.Msg {
-	if err := git.StashApply(m.dir, m.stashes[m.idxStash].Ref); err != nil {
+	if err := git.StashApply(m.dir, m.stashes[m.panels[focusStash].idx].Ref); err != nil {
 		return errMsg{err}
 	}
 	files, err := git.Status(m.dir)
@@ -906,7 +888,7 @@ func (m *Model) handleApplyStash() tea.Msg {
 }
 
 func (m *Model) handleDropStash() tea.Msg {
-	if err := git.StashDrop(m.dir, m.stashes[m.idxStash].Ref); err != nil {
+	if err := git.StashDrop(m.dir, m.stashes[m.panels[focusStash].idx].Ref); err != nil {
 		return errMsg{err}
 	}
 	stashes, err := git.Stashes(m.dir)
@@ -917,7 +899,7 @@ func (m *Model) handleDropStash() tea.Msg {
 }
 
 func (m *Model) handlePopStash() tea.Msg {
-	if err := git.StashPop(m.dir, m.stashes[m.idxStash].Ref); err != nil {
+	if err := git.StashPop(m.dir, m.stashes[m.panels[focusStash].idx].Ref); err != nil {
 		return errMsg{err}
 	}
 	stashes, err := git.Stashes(m.dir)
@@ -962,7 +944,7 @@ func (m *Model) handlePushStash() tea.Msg {
 
 func (m *Model) handleStashBranch() tea.Msg {
 	branch := m.stashBranchPopup.input.Value()
-	if err := git.StashBranch(m.dir, branch, m.stashes[m.idxStash].Ref); err != nil {
+	if err := git.StashBranch(m.dir, branch, m.stashes[m.panels[focusStash].idx].Ref); err != nil {
 		return errMsg{err}
 	}
 	return nil
@@ -1000,12 +982,23 @@ func (m *Model) handleCreateBranch() tea.Msg {
 	return branchesMsg(branches)
 }
 
+func (m *Model) handleInitRepo(branch string) tea.Msg {
+	if err := git.Init(m.dir, branch); err != nil {
+		return errMsg{err}
+	}
+	return repoReadyMsg{}
+}
+
 func (m *Model) handleToggleStage() tea.Msg {
-	if m.files[m.idxFiles].Staged() {
-		if err := git.Reset(m.dir, m.files[m.idxFiles].Path); err != nil {
+	idx, ok := m.selectedFile()
+	if !ok {
+		return nil
+	}
+	if m.files[idx].Staged() {
+		if err := git.Reset(m.dir, m.files[idx].Path); err != nil {
 			return errMsg{err}
 		}
-	} else if err := git.Add(m.dir, m.files[m.idxFiles].Path); err != nil {
+	} else if err := git.Add(m.dir, m.files[idx].Path); err != nil {
 		return errMsg{err}
 	}
 	files, err := git.Status(m.dir)
@@ -1083,8 +1076,8 @@ func (m *Model) handleTag() tea.Msg {
 	return nil
 }
 
-func (m *Model) handleMerge(branch string, mode mergeMode) tea.Msg {
-	err := git.Merge(m.dir, branch, mode.gitArg())
+func (m *Model) handleMerge(branch string, mode git.MergeMode) tea.Msg {
+	err := git.Merge(m.dir, branch, mode)
 	if err != nil {
 		return errMsg{err}
 	}
@@ -1093,6 +1086,127 @@ func (m *Model) handleMerge(branch string, mode mergeMode) tea.Msg {
 		return errMsg{err}
 	}
 	return branchesMsg(branches)
+}
+
+// handleResolveConflict reads path's conflicts so the resolver can show them.
+// It runs git and writes temp files, so it is a command rather than something
+// done inline on the key press; the hunks come back as a conflictMsg.
+func (m *Model) handleResolveConflict(path string) tea.Cmd {
+	return func() tea.Msg {
+		file, err := git.MergeConflict(m.dir, path)
+		if err != nil {
+			return conflictMsg{path: path, err: err}
+		}
+		return conflictMsg{path: path, file: file}
+	}
+}
+
+// updateConflict handles a key while the resolver is open. Everything else,
+// including every other key, is dropped: a popup that let keys through would
+// act on the file the user had selected before opening it.
+func (m *Model) updateConflict(msg tea.Msg) tea.Cmd {
+	key, ok := msg.(tea.KeyMsg)
+	if !ok {
+		return nil
+	}
+
+	c := &m.conflictPopup
+	hunks := len(c.file.Hunks)
+	if hunks == 0 {
+		// Nothing to pick a side for. MergeConflict would normally have
+		// refused to open the popup, so this is only reachable if the file
+		// was resolved underneath us.
+		*c = conflictPopup{}
+		return nil
+	}
+
+	// setChoice records a resolution for the hunk under the cursor.
+	setChoice := func(r git.Resolution) {
+		c.choices[c.idx] = r
+	}
+	// cycle steps through ours, theirs, both, wrapping either way, which is
+	// the fastest way through a file whose hunks mostly want the same side.
+	cycle := func(step int) {
+		cur := 0
+		for i, r := range git.Resolutions {
+			if r == c.choices[c.idx] {
+				cur = i
+				break
+			}
+		}
+		setChoice(git.Resolutions[(cur+step+len(git.Resolutions))%len(git.Resolutions)])
+	}
+
+	switch key.String() {
+	case "up", "k":
+		c.idx = (c.idx - 1 + hunks) % hunks
+		c.scroll = 0
+	case "down", "j":
+		c.idx = (c.idx + 1) % hunks
+		c.scroll = 0
+	case "pgup":
+		c.scroll -= m.conflictDetailRows()
+	case "pgdown":
+		c.scroll += m.conflictDetailRows()
+	case "left", "h", "shift+tab":
+		cycle(-1)
+	case "right", "l", "tab":
+		cycle(1)
+	case "o":
+		setChoice(git.ResolveOurs)
+	case "t":
+		setChoice(git.ResolveTheirs)
+	case "b":
+		setChoice(git.ResolveBoth)
+	case "enter":
+		return m.saveConflict()
+	case "esc":
+		// Cleared rather than just deactivated, so that reopening starts from
+		// the hunks git reports now instead of the ones held here, which may
+		// be a merge that has since been redone.
+		*c = conflictPopup{}
+		return nil
+	}
+	m.clampConflictScroll()
+	return nil
+}
+
+// clampConflictScroll keeps the detail pane inside the selected hunk's text.
+// Called after every key, because moving to another hunk resets the offset and
+// paging can overshoot it.
+//
+// The limit is the pane's own height rather than the length of the text, so
+// that scrolling to the bottom shows the end of a short hunk instead of
+// refusing to move at all.
+func (m *Model) clampConflictScroll() {
+	c := &m.conflictPopup
+	body := conflictDetailLines(c.file.Hunks[c.idx], c.choices[c.idx])
+	limit := max(0, len(body)-m.conflictDetailRows())
+	if c.scroll > limit {
+		c.scroll = limit
+	}
+	if c.scroll < 0 {
+		c.scroll = 0
+	}
+}
+
+// saveConflict writes the resolved file and stages it. The popup closes first
+// so that a failure surfaces in the files panel behind it, which still shows
+// the path as conflicted, rather than behind a popup the user has to dismiss
+// to find out.
+func (m *Model) saveConflict() tea.Cmd {
+	path := m.conflictPopup.path
+	// Copied because the popup is cleared before the command runs, and
+	// ResolveFile is given the choices as they were when enter was pressed.
+	choices := append([]git.Resolution(nil), m.conflictPopup.choices...)
+	m.conflictPopup = conflictPopup{}
+
+	return tea.Sequence(func() tea.Msg {
+		if err := git.ResolveFile(m.dir, path, choices); err != nil {
+			return errMsg{err}
+		}
+		return nil
+	}, m.Refresh())
 }
 
 func (m *Model) handlePush(branch string) tea.Msg {
@@ -1108,7 +1222,7 @@ func (m *Model) handlePush(branch string) tea.Msg {
 }
 
 func (m *Model) handleRewordCommit() tea.Cmd {
-	entry := m.log[m.idxLog]
+	entry := m.log[m.panels[focusLog].idx]
 	m.commitPopup.reword = true
 	m.commitPopup.rewordHash = entry.Hash
 	m.commitPopup.squash = false
@@ -1167,19 +1281,10 @@ func (m *Model) mouseClick(ms tea.Mouse) {
 		return
 	}
 	m.focus = target
-	if row < 0 {
+	if row < 0 || target == focusDiff {
 		return
 	}
-	switch target {
-	case focusStag:
-		m.idxFiles = row
-	case focusBranch:
-		m.idxBranch = row
-	case focusLog:
-		m.idxLog = row
-	case focusStash:
-		m.idxStash = row
-	}
+	m.panels[target].idx = row
 }
 
 // mouseWheel scrolls the diff viewport when the wheel is over the diff
@@ -1202,17 +1307,7 @@ func (m *Model) mouseWheel(ms tea.Mouse) tea.Cmd {
 		return nil
 	}
 	m.focus = target
-
-	switch target {
-	case focusStag:
-		m.moveFile(delta)
-	case focusBranch:
-		m.moveBranch(delta)
-	case focusLog:
-		m.moveLog(delta)
-	case focusStash:
-		m.moveStash(delta)
-	case focusDiff:
+	if target == focusDiff {
 		if delta < 0 {
 			m.diff.ScrollUp(3)
 		} else {
@@ -1220,51 +1315,6 @@ func (m *Model) mouseWheel(ms tea.Mouse) tea.Cmd {
 		}
 		return nil
 	}
+	m.move(target, delta)
 	return m.showDiff()
-}
-
-func (m *Model) moveFile(delta int) {
-	m.idxFiles += delta
-
-	if m.idxFiles < 0 {
-		m.idxFiles = 0
-	}
-
-	if m.idxFiles >= len(m.files) {
-		m.idxFiles = len(m.files) - 1
-	}
-}
-
-func (m *Model) moveBranch(delta int) {
-	m.idxBranch += delta
-
-	if m.idxBranch < 0 {
-		m.idxBranch = 0
-	}
-
-	if m.idxBranch >= len(m.branches) {
-		m.idxBranch = len(m.branches) - 1
-	}
-}
-
-func (m *Model) moveLog(delta int) {
-	m.idxLog += delta
-	if m.idxLog < 0 {
-		m.idxLog = 0
-	}
-
-	if m.idxLog >= len(m.log) {
-		m.idxLog = len(m.log) - 1
-	}
-}
-
-func (m *Model) moveStash(delta int) {
-	m.idxStash += delta
-	if m.idxStash < 0 {
-		m.idxStash = 0
-	}
-
-	if m.idxStash >= len(m.stashes) {
-		m.idxStash = len(m.stashes) - 1
-	}
 }

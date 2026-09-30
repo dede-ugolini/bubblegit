@@ -3,45 +3,28 @@ package git
 import (
 	"fmt"
 	"os"
-	"os/exec"
-	"strings"
 )
 
 func Commit(dir, message string) error {
-	cmd := exec.Command("git", "commit", "-m", message)
-	cmd.Dir = dir
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("%s", strings.TrimSpace(string(out)))
-	}
-	return nil
+	_, err := runGitWrite(dir, "commit", "-m", message)
+	return err
 }
 
 func Ammend(dir, message string) error {
-	cmd := exec.Command("git", "commit", "--amend", "-m", message)
-	cmd.Dir = dir
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("%s", strings.TrimSpace(string(out)))
-	}
-	return nil
+	_, err := runGitWrite(dir, "commit", "--amend", "-m", message)
+	return err
 }
 
 // DropLastCommit removes the most recent commit (HEAD) from the current
 // branch, discarding its changes. It refuses to drop the only (root) commit.
 func DropLastCommit(dir string) error {
-	verify := exec.Command("git", "rev-parse", "--verify", "-q", "HEAD^")
-	verify.Dir = dir
-	if err := verify.Run(); err != nil {
+	mu.Lock()
+	defer mu.Unlock()
+	if _, err := execGit(dir, nil, "rev-parse", "--verify", "-q", "HEAD^"); err != nil {
 		return fmt.Errorf("cannot drop the only commit")
 	}
-	cmd := exec.Command("git", "reset", "--hard", "HEAD^")
-	cmd.Dir = dir
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("%s", strings.TrimSpace(string(out)))
-	}
-	return nil
+	_, err := execGit(dir, nil, "reset", "--hard", "HEAD^")
+	return err
 }
 
 // RewordCommit replaces the message of an arbitrary (not necessarily HEAD)
@@ -60,41 +43,19 @@ func DropLastCommit(dir string) error {
 //     the message we already wrote to a temp file, sidestepping the need
 //     to safely quote arbitrary commit-message text into a shell command.
 func RewordCommit(dir, hash, message string) error {
-	msgFile, err := os.CreateTemp("", "bubblegit-reword-*.txt")
+	msgFile, err := writeMsgFile("reword", message)
 	if err != nil {
 		return err
 	}
-	defer os.Remove(msgFile.Name())
-	if _, err := msgFile.WriteString(message); err != nil {
-		msgFile.Close()
-		return err
-	}
-	if err := msgFile.Close(); err != nil {
-		return err
-	}
+	defer os.Remove(msgFile)
 
 	base := hash + "^"
-	verify := exec.Command("git", "rev-parse", "--verify", "-q", base)
-	verify.Dir = dir
-	if err := verify.Run(); err != nil {
+	if _, err := runGit(dir, "rev-parse", "--verify", "-q", base); err != nil {
 		// hash has no parent: it's the root commit.
 		base = "--root"
 	}
-
-	cmd := exec.Command("git", "rebase", "-i", base)
-	cmd.Dir = dir
-	cmd.Env = append(os.Environ(),
-		"GIT_SEQUENCE_EDITOR=sed -i '1s/^pick /reword /'",
-		"GIT_EDITOR=cp "+msgFile.Name(),
-	)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		abort := exec.Command("git", "rebase", "--abort")
-		abort.Dir = dir
-		_ = abort.Run()
-		return fmt.Errorf("%s", strings.TrimSpace(string(out)))
-	}
-	return nil
+	return rebaseRewrite(dir, msgFile, "GIT_SEQUENCE_EDITOR=sed -i '1s/^pick /reword /'",
+		"rebase", "-i", base)
 }
 
 // SquashCommits folds `count` consecutive commits, starting at the oldest
@@ -113,39 +74,59 @@ func SquashCommits(dir, oldestHash string, count int, message string) error {
 	if count < 2 {
 		return fmt.Errorf("need at least 2 commits to squash")
 	}
-	msgFile, err := os.CreateTemp("", "bubblegit-squash-*.txt")
+	msgFile, err := writeMsgFile("squash", message)
 	if err != nil {
 		return err
 	}
-	defer os.Remove(msgFile.Name())
-	if _, err := msgFile.WriteString(message); err != nil {
-		msgFile.Close()
-		return err
-	}
-	if err := msgFile.Close(); err != nil {
-		return err
-	}
+	defer os.Remove(msgFile)
 
 	base := oldestHash + "^"
-	verify := exec.Command("git", "rev-parse", "--verify", "-q", base)
-	verify.Dir = dir
-	if err := verify.Run(); err != nil {
+	if _, err := runGit(dir, "rev-parse", "--verify", "-q", base); err != nil {
 		// oldestHash has no parent: it's the root commit.
 		base = "--root"
 	}
+	editor := fmt.Sprintf("GIT_SEQUENCE_EDITOR=sed -i '2,%ds/^pick /squash /'", count)
+	return rebaseRewrite(dir, msgFile, editor, "rebase", "-i", base)
+}
 
-	cmd := exec.Command("git", "rebase", "-i", base)
-	cmd.Dir = dir
-	cmd.Env = append(os.Environ(),
-		fmt.Sprintf("GIT_SEQUENCE_EDITOR=sed -i '2,%ds/^pick /squash /'", count),
-		"GIT_EDITOR=cp "+msgFile.Name(),
-	)
-	out, err := cmd.CombinedOutput()
+// writeMsgFile writes message to a temp file and returns its path. RewordCommit
+// and SquashCommits feed it to GIT_EDITOR, to copy over git's commit-message
+// file; MergeConflict feeds it to git as one side of a merge. Either way the
+// caller owns removing the file.
+func writeMsgFile(kind, message string) (string, error) {
+	f, err := os.CreateTemp("", "bubblegit-"+kind+"-*.txt")
 	if err != nil {
-		abort := exec.Command("git", "rebase", "--abort")
-		abort.Dir = dir
-		_ = abort.Run()
-		return fmt.Errorf("%s", strings.TrimSpace(string(out)))
+		return "", err
 	}
-	return nil
+	if _, err := f.WriteString(message); err != nil {
+		f.Close()
+		os.Remove(f.Name())
+		return "", err
+	}
+	if err := f.Close(); err != nil {
+		os.Remove(f.Name())
+		return "", err
+	}
+	return f.Name(), nil
+}
+
+// rebaseRewrite runs the scripted `git rebase -i` shared by RewordCommit and
+// SquashCommits: sequenceEditor rewrites the todo list, and the message in
+// msgFile is what GIT_EDITOR copies into place. The rebase and its cleanup
+// share one exclusive lock, so nothing can interleave between a failure and
+// the abort that recovers from it.
+func rebaseRewrite(dir, msgFile, sequenceEditor string, args ...string) error {
+	mu.Lock()
+	defer mu.Unlock()
+	_, err := execGit(dir, []string{
+		sequenceEditor,
+		"GIT_EDITOR=cp " + msgFile,
+	}, args...)
+	if err == nil {
+		return nil
+	}
+	// Don't leave a half-finished rebase for the user to discover and clean
+	// up by hand.
+	_, _ = execGit(dir, nil, "rebase", "--abort")
+	return err
 }

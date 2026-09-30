@@ -1,9 +1,6 @@
 package git
 
 import (
-	"bytes"
-	"fmt"
-	"os/exec"
 	"strconv"
 	"strings"
 	"time"
@@ -23,17 +20,15 @@ func Stashes(dir string) ([]StashEntry, error) {
 	// numeric "stash@{N}" index. So the timestamp is pulled separately
 	// via %ct and formatted here instead.
 	format := strings.Join([]string{"%gd", "%ct", "%s"}, logFieldSep) + logRecordSep
-	cmd := exec.Command("git", "stash", "list", "--pretty=format:"+format)
-	cmd.Dir = dir
-	out, err := cmd.CombinedOutput()
+	out, err := runGit(dir, "stash", "list", "--pretty=format:"+format)
 	if err != nil {
-		return nil, fmt.Errorf("%s", strings.TrimSpace(string(out)))
+		return nil, err
 	}
-	if string(out) == "" {
+	if out == "" {
 		return nil, nil
 	}
 	var stashes []StashEntry
-	for rec := range strings.SplitSeq(string(out), logRecordSep) {
+	for rec := range strings.SplitSeq(out, logRecordSep) {
 		rec = strings.TrimPrefix(rec, "\n")
 		if rec == "" {
 			continue
@@ -62,107 +57,48 @@ func StashPush(dir, message string) error {
 	if message != "" {
 		args = append(args, "-m", message)
 	}
-	cmd := exec.Command("git", args...)
-	cmd.Dir = dir
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("%s", strings.TrimSpace(string(out)))
-	}
-	return nil
+	_, err := runGitWrite(dir, args...)
+	return err
 }
 
 // StashApply applies a stash entry to the working tree, leaving it in the
 // stash list.
 func StashApply(dir, ref string) error {
-	cmd := exec.Command("git", "stash", "apply", ref)
-	cmd.Dir = dir
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("%s", strings.TrimSpace(string(out)))
-	}
-	return nil
+	_, err := runGitWrite(dir, "stash", "apply", ref)
+	return err
 }
 
 // StashDrop removes a stash entry.
 func StashDrop(dir, ref string) error {
-	cmd := exec.Command("git", "stash", "drop", ref)
-	cmd.Dir = dir
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("%s", strings.TrimSpace(string(out)))
-	}
-	return nil
+	_, err := runGitWrite(dir, "stash", "drop", ref)
+	return err
 }
 
 // StashBranch creates and checks out a new branch from the stash's
 // original commit, applies the stash, and drops it from the list.
 func StashBranch(dir, branch, ref string) error {
-	cmd := exec.Command("git", "stash", "branch", branch, ref)
-	cmd.Dir = dir
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("%s", strings.TrimSpace(string(out)))
-	}
-	return nil
+	_, err := runGitWrite(dir, "stash", "branch", branch, ref)
+	return err
 }
 
 func StashPop(dir, ref string) error {
-	cmd := exec.Command("git", "stash", "pop", ref)
-	cmd.Dir = dir
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("%s", strings.TrimSpace(string(out)))
-	}
-	return nil
+	_, err := runGitWrite(dir, "stash", "pop", ref)
+	return err
 }
 
 // StashClear removes every stash entry.
 func StashClear(dir string) error {
-	cmd := exec.Command("git", "stash", "clear")
-	cmd.Dir = dir
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("%s", strings.TrimSpace(string(out)))
-	}
-	return nil
+	_, err := runGitWrite(dir, "stash", "clear")
+	return err
 }
 
-// StashShowDelta renders a stash entry's diff through delta. `git show` on
-// a stash prints a combined "diff --cc" (it's a merge commit); `stash show
-// -p` is the form that produces a normal unified diff.
+// StashShow returns a stash entry's diff. `git show` on a stash prints a
+// combined "diff --cc" (it's a merge commit); `stash show -p` is the form
+// that produces a normal unified diff.
 func StashShow(dir, ref string) (string, error) {
-	cmd := exec.Command("git", "stash", "show", "-p", "--color=always", ref)
-	cmd.Dir = dir
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return "", fmt.Errorf("%s", strings.TrimSpace(string(out)))
-	}
-	return string(out), nil
+	return runGit(dir, "stash", "show", "-p", "--color=always", ref)
 }
 
 func StashShowDelta(dir, ref string, sideBySide bool, width int) (string, error) {
-	git := exec.Command("git", "stash", "show", "-p", "--no-color", ref)
-	git.Dir = dir
-	diff, err := git.Output()
-	if err != nil {
-		return "", err
-	}
-	delta := exec.Command(
-		"delta",
-		"--no-gitconfig",
-		"--paging=never",
-		"--line-numbers",
-	)
-	if sideBySide {
-		delta.Args = append(delta.Args, "--side-by-side", fmt.Sprintf("--width=%d", width))
-	}
-	delta.Stdin = bytes.NewReader(diff)
-
-	var output bytes.Buffer
-	delta.Stdout = &output
-
-	if err := delta.Run(); err != nil {
-		return "", err
-	}
-	return output.String(), nil
+	return runDelta(dir, []string{"stash", "show", "-p", "--no-color", ref}, sideBySide, width)
 }
