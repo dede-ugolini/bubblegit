@@ -314,7 +314,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case worktreeMsg:
 		m.worktrees = []git.WorktreeEntry(msg)
-		m.clampWorktreesCursor()
+		m.clampCursors()
 		return m, nil
 
 	case tea.MouseClickMsg:
@@ -341,8 +341,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.focus = (m.focus + 1) % focusCount
 			return m, m.showDiff()
 
-		case "ctrl+tab":
-			m.subPanelFocus = (m.subPanelFocus + 1) % subPanelFocusCount
+		case "w", "ctrl+tab":
+			m.cycleView()
 			return m, m.showDiff()
 
 		case "0":
@@ -370,10 +370,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.diff, cmd = m.diff.Update(msg)
 				return m, cmd
 			}
-			if m.focus == focusStag && m.activeWorktrees() {
-				m.moveWorktrees(-1)
-				return m, m.showDiff()
-			}
 			m.move(m.focus, -1)
 			return m, m.showDiff()
 
@@ -382,10 +378,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				var cmd tea.Cmd
 				m.diff, cmd = m.diff.Update(msg)
 				return m, cmd
-			}
-			if m.focus == focusStag && m.activeWorktrees() {
-				m.moveWorktrees(1)
-				return m, m.showDiff()
 			}
 			m.move(m.focus, 1)
 			return m, m.showDiff()
@@ -399,7 +391,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				})
 			}
 			// Restore file
-			if m.focus == focusStag && !m.activeWorktrees() {
+			if m.focus == focusStag && m.panels[focusStag].view == viewMain {
 				if idx, ok := m.selectedFile(); ok {
 					m.ask(confirm{
 						title: "Restore '" + m.files[idx].Path + "'?",
@@ -495,7 +487,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case "enter":
 			// Expand/collapse file tree directory
-			if m.focus == focusStag && !m.activeWorktrees() && len(m.treeRows) > 0 {
+			if m.focus == focusStag && m.panels[focusStag].view == viewMain && len(m.treeRows) > 0 {
 				if row := m.treeRows[m.panels[focusStag].idx]; row.isDir {
 					if m.collapsed[row.dir] {
 						delete(m.collapsed, row.dir)
@@ -522,19 +514,19 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "space":
 			// stage/unstage file
-			if m.focus == focusStag && !m.activeWorktrees() {
+			if m.focus == focusStag && m.panels[focusStag].view == viewMain {
 				if _, ok := m.selectedFile(); ok {
 					return m, m.handleToggleStage
 				}
 			}
 		case "a":
 			// stage/unstage all
-			if m.focus == focusStag && !m.activeWorktrees() && len(m.files) > 0 {
+			if m.focus == focusStag && m.panels[focusStag].view == viewMain && len(m.files) > 0 {
 				return m, m.handleToggleStageAll
 			}
 		case "A":
 			// Amend commit
-			if m.focus == focusStag && !m.activeWorktrees() && len(m.files) > 0 && git.HasOneStaged(m.files) && len(m.log) > 0 {
+			if m.focus == focusStag && m.panels[focusStag].view == viewMain && len(m.files) > 0 && git.HasOneStaged(m.files) && len(m.log) > 0 {
 				m.ask(confirm{
 					title: "Amend commit '" + m.log[0].Subject + "'?",
 					onYes: m.handleAmend,
@@ -550,7 +542,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "c":
 			// Commit
-			if m.focus == focusStag && !m.activeWorktrees() && len(m.files) > 0 && git.HasOneStaged(m.files) {
+			if m.focus == focusStag && m.panels[focusStag].view == viewMain && len(m.files) > 0 && git.HasOneStaged(m.files) {
 				m.commitPopup.reword = false
 				m.commitPopup.rewordHash = ""
 				m.commitPopup.squash = false
@@ -656,7 +648,7 @@ func (m *Model) showDiff() tea.Cmd {
 	return func() tea.Msg {
 		switch m.focus {
 		case focusStag:
-			if m.activeWorktrees() {
+			if m.panels[focusStag].view != viewMain {
 				// Worktrees are display-only, so there is no diff to show.
 				return diffMsg{}
 			}
@@ -1138,11 +1130,8 @@ func (m *Model) mouseClick(ms tea.Mouse) {
 	if row < 0 || target == focusDiff {
 		return
 	}
-	if target == focusStag && m.activeWorktrees() {
-		m.subPanels[subPanelFocusWorktrees].idx = row
-		return
-	}
 	m.panels[target].idx = row
+	m.panels[target].cursors[m.panels[target].view] = row
 }
 
 // mouseWheel scrolls the diff viewport when the wheel is over the diff
@@ -1172,10 +1161,6 @@ func (m *Model) mouseWheel(ms tea.Mouse) tea.Cmd {
 			m.diff.ScrollDown(3)
 		}
 		return nil
-	}
-	if target == focusStag && m.activeWorktrees() {
-		m.moveWorktrees(delta)
-		return m.showDiff()
 	}
 	m.move(target, delta)
 	return m.showDiff()

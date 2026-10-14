@@ -260,15 +260,12 @@ func (m *Model) renderNormalView() string {
 	// collapses one leaves it rendering as the empty string - and a blank
 	// line would then take its place, pushing every panel below it down the
 	// screen. So the separators follow the panels that are actually there.
-	// The first slot holds either the files tree or the worktrees subpanel,
-	// whichever "w" has selected.
-	rows := make([]string, 0, 4)
-	if m.activeWorktrees() {
-		rows = append(rows, m.renderWorktrees())
-	} else {
-		rows = append(rows, m.renderFiles())
+	rows := []string{
+		m.renderView(focusStag),
+		m.renderView(focusBranch),
+		m.renderView(focusLog),
+		m.renderView(focusStash),
 	}
-	rows = append(rows, m.renderBranches(), m.renderLog(), m.renderStash())
 
 	visible := rows[:0]
 	for _, r := range rows {
@@ -374,6 +371,28 @@ type fileIcon struct {
 	c color.Color
 }
 
+// renderView renders whichever view a list panel is currently showing. It
+// dispatches on the panel's active view first, then falls back to the
+// panel's own renderer, so adding a subpanel only means adding a case here
+// and in viewRows.
+func (m *Model) renderView(focus int) string {
+	switch m.panels[focus].view {
+	case viewWorktrees:
+		return m.renderWorktrees()
+	}
+	switch focus {
+	case focusStag:
+		return m.renderFiles()
+	case focusBranch:
+		return m.renderBranches()
+	case focusLog:
+		return m.renderLog()
+	case focusStash:
+		return m.renderStash()
+	}
+	return ""
+}
+
 func (m *Model) renderFiles() string {
 	p := m.panels[focusStag]
 	if p.height <= 0 || p.width <= 0 {
@@ -472,15 +491,15 @@ func (m *Model) renderFiles() string {
 // rows are plain text (the highlighted one swapping colors for the cursor
 // background, as in the other list panels).
 func (m *Model) renderWorktrees() string {
-	p := m.subPanels[subPanelFocusWorktrees]
+	p := m.panels[focusStag]
 	if p.height <= 0 || p.width <= 0 {
 		return ""
 	}
 
-	// The row is only the cursor when the files slot actually holds focus;
+	// The row is only the cursor when the files panel actually holds focus;
 	// otherwise the subpanel is shown but not active, same as the other
 	// panels' selection styling.
-	selected := m.focus == focusStag && m.activeWorktrees()
+	selected := m.focus == focusStag
 
 	start, end := visibleWindow(len(m.worktrees), p.height, p.idx)
 	hashColor := lipgloss.NewStyle().Foreground(m.theme.Hash)

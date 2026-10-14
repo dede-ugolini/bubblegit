@@ -21,10 +21,15 @@ const (
 	focusCount
 )
 
+// viewID identifies one of the views a panel can show. Every panel starts on
+// viewMain; a panel that has subpanels lists the extra ids in panelViews and
+// cycles between them.
+type viewID int
+
 const (
-	subPanelFocusFiles = iota
-	subPanelFocusWorktrees
-	subPanelFocusCount
+	viewMain viewID = iota
+	viewWorktrees
+	viewCount
 )
 
 type (
@@ -162,8 +167,27 @@ type tagPopup struct {
 type panel struct {
 	height, width int
 
-	// idx is the selected row within the panel.
+	// view is which of the panel's views is showing, indexing
+	// panelViews[focus]; the first entry is the panel's own content.
+	view viewID
+
+	// idx is the selected row within the active view.
 	idx int
+
+	// cursors remembers each view's cursor so switching views and back
+	// restores where the user left off. The active view's entry mirrors idx;
+	// cycleView swaps them.
+	cursors [viewCount]int
+}
+
+// panelViews lists, per panel, the views it can show in cycle order. The
+// first is the panel's own content; the rest are subpanels reached with the
+// view-toggle key. A panel with a single entry has nothing to cycle to.
+var panelViews = [focusCount][]viewID{
+	focusStag:   {viewMain, viewWorktrees},
+	focusBranch: {viewMain},
+	focusLog:    {viewMain},
+	focusStash:  {viewMain},
 }
 
 // clampRow bounds idx to a list of n rows, matching the order the panels
@@ -183,14 +207,7 @@ func clampRow(idx, n int) int {
 type Model struct {
 	dir string
 
-	// panels holds the geometry and cursor of each list panel, indexed by
-	// focus constant: panels[focusBranch] is the branch panel. focusDiff has
-	// no entry, because the diff panel's size lives in the viewport itself
-	// and it has no cursor. subPanels is the same idea for the files slot's
-	// other face: the worktrees list, which shares that slot and holds its
-	// own geometry and cursor so toggling doesn't disturb the file tree.
-	panels    [focusCount]panel
-	subPanels [subPanelFocusCount]panel
+	panels [focusCount]panel
 
 	files []git.FileStatus
 
@@ -242,10 +259,9 @@ type Model struct {
 
 	mergePopup mergePopup
 
-	focus         int
-	subPanelFocus int
-	diff          viewport.Model
-	err           error
+	focus int
+	diff  viewport.Model
+	err   error
 
 	width  int
 	height int
@@ -370,17 +386,6 @@ func (m *Model) setSplitLayout(w, h int) {
 	}
 	m.diff.SetHeight(h * diffLayoutH / 100)
 	m.diff.SetWidth(w * diffLayoutW / 100)
-	m.syncWorktreesPanel()
-}
-
-// syncWorktreesPanel gives the worktrees subpanel the same box as the files
-// panel, since the two share a slot and only one is shown at a time. Only the
-// geometry is copied, not the whole panel: each keeps its own cursor, so a
-// layout change or resize doesn't move either. A layout that collapses the
-// files panel therefore collapses the worktrees panel with it.
-func (m *Model) syncWorktreesPanel() {
-	wt := &m.subPanels[subPanelFocusWorktrees]
-	wt.height, wt.width = m.panels[focusStag].height, m.panels[focusStag].width
 }
 
 // setMiddleLayout gives the focused panel the left half of the window at full
@@ -409,7 +414,6 @@ func (m *Model) setMiddleLayout(focus, w, h int) {
 	// inside the box, so the two border rows have to come off the window
 	// height to leave a box of h.
 	m.diff.SetHeight(max(h-2, 1))
-	m.syncWorktreesPanel()
 	if focus == focusDiff {
 		// The diff is the focused panel, so it's the one on the left.
 		m.diff.SetWidth(max(left, 1))
@@ -449,7 +453,6 @@ func (m *Model) setFullscreenLayout(focus, w, h int) {
 			p.height, p.width = 0, 0
 		}
 	}
-	m.syncWorktreesPanel()
 	if focus == focusDiff {
 		m.diff.SetHeight(h)
 		m.diff.SetWidth(w)
@@ -459,9 +462,9 @@ func (m *Model) setFullscreenLayout(focus, w, h int) {
 	m.diff.SetWidth(0)
 }
 
-// rowCount reports how many rows a list panel currently has. Each panel
-// counts a different slice: the files panel counts the flattened tree, not
-// m.files.
+// rowCount reports how many rows a list panel's own view currently has. Each
+// panel counts a different slice: the files panel counts the flattened tree,
+// not m.files.
 func (m *Model) rowCount(focus int) int {
 	switch focus {
 	case focusStag:
@@ -476,13 +479,24 @@ func (m *Model) rowCount(focus int) int {
 	return 0
 }
 
-// move moves a list panel's cursor by delta rows, clamped to the rows it
-// has. focusDiff has no cursor and is left alone.
+// viewRows reports how many rows the panel's active view currently has. It
+// falls back to rowCount for every panel's own content, so a new subpanel
+// only has to add a case here.
+func (m *Model) viewRows(focus int) int {
+	switch m.panels[focus].view {
+	case viewWorktrees:
+		return len(m.worktrees)
+	}
+	return m.rowCount(focus)
+}
+
+// move moves a list panel's active-view cursor by delta rows, clamped to the
+// rows it has. focusDiff has no cursor and is left alone.
 func (m *Model) move(focus, delta int) {
 	if focus == focusDiff {
 		return
 	}
-	m.panels[focus].idx = clampRow(m.panels[focus].idx+delta, m.rowCount(focus))
+	m.panels[focus].idx = clampRow(m.panels[focus].idx+delta, m.viewRows(focus))
 }
 
 // clampCursors re-clamps every list panel's cursor. Call it after replacing
@@ -490,28 +504,32 @@ func (m *Model) move(focus, delta int) {
 // moved) can't leave the cursor pointing past its end.
 func (m *Model) clampCursors() {
 	for i := focusStag; i < focusDiff; i++ {
-		m.panels[i].idx = clampRow(m.panels[i].idx, m.rowCount(i))
+		p := &m.panels[i]
+		p.idx = clampRow(p.idx, m.viewRows(i))
+		p.cursors[p.view] = p.idx
 	}
 }
 
-// activeWorktrees reports whether the files slot is currently showing the
-// worktrees subpanel rather than the file tree.
-func (m *Model) activeWorktrees() bool {
-	return m.subPanelFocus == subPanelFocusWorktrees
-}
-
-// moveWorktrees moves the worktrees subpanel's cursor by delta rows, clamped
-// to the rows it has - the worktrees equivalent of move.
-func (m *Model) moveWorktrees(delta int) {
-	p := &m.subPanels[subPanelFocusWorktrees]
-	p.idx = clampRow(p.idx+delta, len(m.worktrees))
-}
-
-// clampWorktreesCursor re-clamps the worktrees cursor after its list is
-// replaced, so it can't point past a shrunken list.
-func (m *Model) clampWorktreesCursor() {
-	p := &m.subPanels[subPanelFocusWorktrees]
-	p.idx = clampRow(p.idx, len(m.worktrees))
+// cycleView advances the focused panel to its next view and back its cursor
+// to wherever that view was left. A panel with a single view does nothing.
+func (m *Model) cycleView() {
+	if m.focus == focusDiff {
+		return
+	}
+	p := &m.panels[m.focus]
+	views := panelViews[m.focus]
+	if len(views) < 2 {
+		return
+	}
+	for i, v := range views {
+		if v != p.view {
+			continue
+		}
+		p.cursors[p.view] = p.idx
+		p.view = views[(i+1)%len(views)]
+		p.idx = clampRow(p.cursors[p.view], m.viewRows(m.focus))
+		return
+	}
 }
 
 func (m *Model) Refresh() tea.Cmd {
