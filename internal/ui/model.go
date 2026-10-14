@@ -31,6 +31,7 @@ type (
 	diffMsg     struct{ diff string }
 	errMsg      struct{ err error }
 	tickMsg     struct{}
+	worktreeMsg []git.WorktreeEntry
 
 	// detachedMsg carries the short hash HEAD points at when it is not on a
 	// local branch, and the empty string when it is. Since it is sent on
@@ -215,6 +216,8 @@ type Model struct {
 	squashAnchor  int
 
 	stashes []git.StashEntry
+
+	worktrees []git.WorktreeEntry
 
 	// confirm is the modal "are you sure?" prompt. At most one is open at
 	// a time, so one value covers every destructive action instead of a
@@ -511,6 +514,12 @@ func (m *Model) Refresh() tea.Cmd {
 				return errMsg{err}
 			}
 			return stashesMsg(stashes)
+		},
+		func() tea.Msg {
+			worktree, err := git.Worktrees(m.dir)
+			if err != nil {
+				return errMsg{err}
+			}
 		},
 		func() tea.Msg {
 			// Detection never fails, so this never reports an error: an

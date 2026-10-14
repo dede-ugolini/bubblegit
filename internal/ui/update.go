@@ -312,6 +312,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.diff.SetContent(msg.diff)
 		return m, nil
 
+	case worktreeMsg:
+		m.worktrees = []git.WorktreeEntry(msg)
+		return m, nil
+
 	case tea.MouseClickMsg:
 		m.mouseClick(msg.Mouse())
 		return m, m.showDiff()
