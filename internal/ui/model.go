@@ -21,6 +21,12 @@ const (
 	focusCount
 )
 
+const (
+	subPanelFocusFiles = iota
+	subPanelFocusWorktrees
+	subPanelFocusCount
+)
+
 type (
 	filesMsg    []git.FileStatus
 	branchesMsg []git.BranchInfo
@@ -180,8 +186,11 @@ type Model struct {
 	// panels holds the geometry and cursor of each list panel, indexed by
 	// focus constant: panels[focusBranch] is the branch panel. focusDiff has
 	// no entry, because the diff panel's size lives in the viewport itself
-	// and it has no cursor.
-	panels [focusCount]panel
+	// and it has no cursor. subPanels is the same idea for the files slot's
+	// other face: the worktrees list, which shares that slot and holds its
+	// own geometry and cursor so toggling doesn't disturb the file tree.
+	panels    [focusCount]panel
+	subPanels [subPanelFocusCount]panel
 
 	files []git.FileStatus
 
@@ -233,9 +242,10 @@ type Model struct {
 
 	mergePopup mergePopup
 
-	focus int
-	diff  viewport.Model
-	err   error
+	focus         int
+	subPanelFocus int
+	diff          viewport.Model
+	err           error
 
 	width  int
 	height int
@@ -360,6 +370,17 @@ func (m *Model) setSplitLayout(w, h int) {
 	}
 	m.diff.SetHeight(h * diffLayoutH / 100)
 	m.diff.SetWidth(w * diffLayoutW / 100)
+	m.syncWorktreesPanel()
+}
+
+// syncWorktreesPanel gives the worktrees subpanel the same box as the files
+// panel, since the two share a slot and only one is shown at a time. Only the
+// geometry is copied, not the whole panel: each keeps its own cursor, so a
+// layout change or resize doesn't move either. A layout that collapses the
+// files panel therefore collapses the worktrees panel with it.
+func (m *Model) syncWorktreesPanel() {
+	wt := &m.subPanels[subPanelFocusWorktrees]
+	wt.height, wt.width = m.panels[focusStag].height, m.panels[focusStag].width
 }
 
 // setMiddleLayout gives the focused panel the left half of the window at full
@@ -388,6 +409,7 @@ func (m *Model) setMiddleLayout(focus, w, h int) {
 	// inside the box, so the two border rows have to come off the window
 	// height to leave a box of h.
 	m.diff.SetHeight(max(h-2, 1))
+	m.syncWorktreesPanel()
 	if focus == focusDiff {
 		// The diff is the focused panel, so it's the one on the left.
 		m.diff.SetWidth(max(left, 1))
@@ -427,6 +449,7 @@ func (m *Model) setFullscreenLayout(focus, w, h int) {
 			p.height, p.width = 0, 0
 		}
 	}
+	m.syncWorktreesPanel()
 	if focus == focusDiff {
 		m.diff.SetHeight(h)
 		m.diff.SetWidth(w)
@@ -469,6 +492,26 @@ func (m *Model) clampCursors() {
 	for i := focusStag; i < focusDiff; i++ {
 		m.panels[i].idx = clampRow(m.panels[i].idx, m.rowCount(i))
 	}
+}
+
+// activeWorktrees reports whether the files slot is currently showing the
+// worktrees subpanel rather than the file tree.
+func (m *Model) activeWorktrees() bool {
+	return m.subPanelFocus == subPanelFocusWorktrees
+}
+
+// moveWorktrees moves the worktrees subpanel's cursor by delta rows, clamped
+// to the rows it has - the worktrees equivalent of move.
+func (m *Model) moveWorktrees(delta int) {
+	p := &m.subPanels[subPanelFocusWorktrees]
+	p.idx = clampRow(p.idx+delta, len(m.worktrees))
+}
+
+// clampWorktreesCursor re-clamps the worktrees cursor after its list is
+// replaced, so it can't point past a shrunken list.
+func (m *Model) clampWorktreesCursor() {
+	p := &m.subPanels[subPanelFocusWorktrees]
+	p.idx = clampRow(p.idx, len(m.worktrees))
 }
 
 func (m *Model) Refresh() tea.Cmd {
@@ -520,6 +563,7 @@ func (m *Model) Refresh() tea.Cmd {
 			if err != nil {
 				return errMsg{err}
 			}
+			return worktreeMsg(worktree)
 		},
 		func() tea.Msg {
 			// Detection never fails, so this never reports an error: an

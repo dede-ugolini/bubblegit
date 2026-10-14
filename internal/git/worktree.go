@@ -4,27 +4,67 @@ import (
 	"strings"
 )
 
+// WorktreeEntry is one working tree linked to the repository, as reported by
+// `git worktree list`.
 type WorktreeEntry struct {
-	path, hash, branch string
+	Path      string
+	Hash      string
+	ShortHash string
+
+	// Branch is the short name of the branch checked out in the worktree, or
+	// "(detached)" / "(bare)" when it is on no branch.
+	Branch string
 }
 
+// Worktrees lists the repository's working trees. It parses the porcelain
+// format, not the default table: the table is space-aligned, so a path
+// containing a space - or a branchless worktree on a bare repository - would
+// misparse, and its trailing newline would yield an empty record. Porcelain
+// is one attribute per line, with a blank line between entries.
 func Worktrees(dir string) ([]WorktreeEntry, error) {
-	out, err := runGit(dir, "worktree", "list")
+	out, err := runGit(dir, "worktree", "list", "--porcelain")
 	if err != nil {
 		return nil, err
 	}
 	if out == "" {
 		return nil, nil
 	}
-	var worktrees []WorktreeEntry
-	for line := range strings.SplitSeq(out, "\n") {
-		fields := strings.Fields(line)
-		path := fields[0]
-		hash := fields[1]
-		branch := fields[2]
-		branch = strings.TrimPrefix(branch, "[")
-		branch = strings.TrimSuffix(branch, "]")
-		worktrees = append(worktrees, WorktreeEntry{path: path, hash: hash, branch: branch})
+
+	var (
+		worktrees []WorktreeEntry
+		cur       WorktreeEntry
+	)
+	flush := func() {
+		if cur.Path == "" {
+			return
+		}
+		worktrees = append(worktrees, cur)
+		cur = WorktreeEntry{}
 	}
+	for line := range strings.SplitSeq(out, "\n") {
+		switch {
+		case strings.HasPrefix(line, "worktree "):
+			// Blank lines separate entries, but flush here too so a missing
+			// separator can't merge two worktrees into one.
+			flush()
+			cur.Path = strings.TrimPrefix(line, "worktree ")
+		case strings.HasPrefix(line, "HEAD "):
+			cur.Hash = strings.TrimPrefix(line, "HEAD ")
+			cur.ShortHash = cur.Hash
+			if len(cur.ShortHash) > 7 {
+				cur.ShortHash = cur.ShortHash[:7]
+			}
+		case strings.HasPrefix(line, "branch "):
+			ref := strings.TrimPrefix(line, "branch ")
+			cur.Branch = strings.TrimPrefix(ref, "refs/heads/")
+		case line == "detached":
+			cur.Branch = "(detached)"
+		case line == "bare":
+			cur.Branch = "(bare)"
+		case line == "":
+			flush()
+		}
+	}
+	flush()
 	return worktrees, nil
 }

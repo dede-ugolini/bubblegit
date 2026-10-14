@@ -1073,3 +1073,93 @@ func TestSetRemote(t *testing.T) {
 		}
 	})
 }
+
+func TestWorktrees(t *testing.T) {
+	dir := initRepo(t)
+	main := defaultBranch(t, dir)
+
+	linked := filepath.Join(t.TempDir(), "linked")
+	run(t, dir, "git", "worktree", "add", "-b", "linked-branch", linked)
+
+	got, err := Worktrees(dir)
+	if err != nil {
+		t.Fatalf("Worktrees() error: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("Worktrees() len = %d, want 2: %+v", len(got), got)
+	}
+
+	// git reports resolved paths (and t.TempDir() is a symlink on some
+	// platforms), so key the lookup by resolved path on both sides.
+	byPath := map[string]WorktreeEntry{}
+	for _, w := range got {
+		resolved, err := filepath.EvalSymlinks(w.Path)
+		if err != nil {
+			t.Fatalf("EvalSymlinks(%q): %v", w.Path, err)
+		}
+		byPath[resolved] = w
+	}
+
+	mainPath, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	linkedPath, err := filepath.EvalSymlinks(linked)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	mainWT, ok := byPath[mainPath]
+	if !ok {
+		t.Fatalf("main worktree %q missing from %+v", mainPath, got)
+	}
+	if mainWT.Branch != main {
+		t.Errorf("main branch = %q, want %q", mainWT.Branch, main)
+	}
+	if want := revParse(t, dir, "HEAD"); mainWT.Hash != want {
+		t.Errorf("main hash = %q, want %q", mainWT.Hash, want)
+	}
+	if mainWT.ShortHash != mainWT.Hash[:7] {
+		t.Errorf("main ShortHash = %q, want first 7 of %q", mainWT.ShortHash, mainWT.Hash)
+	}
+
+	linkedWT, ok := byPath[linkedPath]
+	if !ok {
+		t.Fatalf("linked worktree %q missing from %+v", linkedPath, got)
+	}
+	if linkedWT.Branch != "linked-branch" {
+		t.Errorf("linked branch = %q, want %q", linkedWT.Branch, "linked-branch")
+	}
+}
+
+func TestWorktreesDetached(t *testing.T) {
+	dir := initRepo(t)
+	run(t, dir, "git", "commit", "-q", "--allow-empty", "-m", "second")
+
+	linked := filepath.Join(t.TempDir(), "det")
+	run(t, dir, "git", "worktree", "add", "--detach", linked, "HEAD~1")
+
+	got, err := Worktrees(dir)
+	if err != nil {
+		t.Fatalf("Worktrees() error: %v", err)
+	}
+
+	linkedPath, err := filepath.EvalSymlinks(linked)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var found bool
+	for _, w := range got {
+		resolved, err := filepath.EvalSymlinks(w.Path)
+		if err != nil || resolved != linkedPath {
+			continue
+		}
+		found = true
+		if w.Branch != "(detached)" {
+			t.Errorf("detached branch = %q, want %q", w.Branch, "(detached)")
+		}
+	}
+	if !found {
+		t.Fatalf("detached worktree %q missing from %+v", linkedPath, got)
+	}
+}

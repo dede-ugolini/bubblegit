@@ -40,6 +40,7 @@ The TUI operates on the git repo in the current working directory.
 |-----|--------|
 | `Tab` | Cycle panels |
 | `1`-`4` | Jump to panel (1=Files, 2=Branch, 3=Log, 4=Stash) |
+| `w` | Toggle the Files panel between the file tree and the Worktrees list |
 | `0` | Jump to diff panel |
 | `+` / `-` | Toggle fullscreen / restore |
 | `t` | Cycle theme (system → nord) |
@@ -56,6 +57,10 @@ The TUI operates on the git repo in the current working directory.
 | `d` | Restore file (with confirm) |
 | `c` | Commit |
 | `A` | Amend HEAD (with confirm) |
+| `w` | Toggle between the file tree and the worktrees list |
+
+Press `w` to switch the Files panel to a read-only list of the repository's
+linked worktrees (branch, short hash and path).
 
 ### Branches
 

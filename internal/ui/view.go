@@ -260,13 +260,23 @@ func (m *Model) renderNormalView() string {
 	// collapses one leaves it rendering as the empty string - and a blank
 	// line would then take its place, pushing every panel below it down the
 	// screen. So the separators follow the panels that are actually there.
+	// The first slot holds either the files tree or the worktrees subpanel,
+	// whichever "w" has selected.
 	rows := make([]string, 0, 4)
-	for _, r := range []string{m.renderFiles(), m.renderBranches(), m.renderLog(), m.renderStash()} {
+	if m.activeWorktrees() {
+		rows = append(rows, m.renderWorktrees())
+	} else {
+		rows = append(rows, m.renderFiles())
+	}
+	rows = append(rows, m.renderBranches(), m.renderLog(), m.renderStash())
+
+	visible := rows[:0]
+	for _, r := range rows {
 		if r != "" {
-			rows = append(rows, r)
+			visible = append(visible, r)
 		}
 	}
-	b := strings.Join(rows, "\n")
+	b := strings.Join(visible, "\n")
 
 	if m.err != nil {
 		b += "\n" + lipgloss.NewStyle().Foreground(m.theme.Error).Render(m.err.Error())
@@ -454,6 +464,56 @@ func (m *Model) renderFiles() string {
 	}
 
 	return m.titledPanel(focusStag, "Files", 0, p.height, strings.Join(s, "\n"))
+}
+
+// renderWorktrees draws the worktrees subpanel, which shares the files
+// panel's slot and is toggled with the files tree by "w". It is
+// display-only: there is no cursor action beyond moving the selection, so
+// rows are plain text (the highlighted one swapping colors for the cursor
+// background, as in the other list panels).
+func (m *Model) renderWorktrees() string {
+	p := m.subPanels[subPanelFocusWorktrees]
+	if p.height <= 0 || p.width <= 0 {
+		return ""
+	}
+
+	// The row is only the cursor when the files slot actually holds focus;
+	// otherwise the subpanel is shown but not active, same as the other
+	// panels' selection styling.
+	selected := m.focus == focusStag && m.activeWorktrees()
+
+	start, end := visibleWindow(len(m.worktrees), p.height, p.idx)
+	hashColor := lipgloss.NewStyle().Foreground(m.theme.Hash)
+	branchColor := lipgloss.NewStyle().Foreground(m.theme.Accent)
+	branch := func(w git.WorktreeEntry) string {
+		name := w.Branch
+		if name == "" {
+			name = "(detached)"
+		}
+		return name
+	}
+
+	var rows []string
+	for i := start; i < end; i++ {
+		w := m.worktrees[i]
+		if i == p.idx && selected {
+			// Deliberately plain text here: coloring the fields first and
+			// only then wrapping in Width(...).Background(...) would hit the
+			// nested-reset issue seen in log/stash - see there.
+			line := w.ShortHash + " " + branch(w) + " " + w.Path
+			rows = append(rows, lipgloss.NewStyle().Width(p.width).Background(m.theme.Cursor).Render(line))
+			continue
+		}
+		line := hashColor.Render(w.ShortHash) + " " + branchColor.Render(branch(w)) + " " + w.Path
+		rows = append(rows, lipgloss.NewStyle().Width(p.width).Render(line))
+	}
+	// Same empty-list placeholder as the stash panel: the border needs one
+	// padded line to hold its width.
+	if len(rows) == 0 {
+		rows = append(rows, lipgloss.NewStyle().Width(p.width).Render(""))
+	}
+
+	return m.titledPanel(focusStag, "Worktrees", 0, p.height, strings.Join(rows, "\n"))
 }
 
 func (m *Model) renderBranches() string {
@@ -701,7 +761,7 @@ func (m *Model) renderFooter() string {
 	modeStr := helpStyle.Render("diff: " + mode + " · V toggle")
 	switch m.focus {
 	case focusStag:
-		return detached + helpStyle.Render(fmt.Sprintf("↑/k ↓/j move · <space> stag · a stag/unstag all · d restore · t theme: %s · q quit", m.themeName)) + " · " + modeStr
+		return detached + helpStyle.Render(fmt.Sprintf("↑/k ↓/j move · <space> stag · a stag/unstag all · d restore · w worktrees · t theme: %s · q quit", m.themeName)) + " · " + modeStr
 	case focusBranch:
 		return detached + helpStyle.Render(fmt.Sprintf("↑/k ↓/j move · enter checkout · n new branch · r rename · d delete · M merge · P push · R set remote · t theme: %s · q quit", m.themeName)) + " · " + modeStr
 	case focusLog:
