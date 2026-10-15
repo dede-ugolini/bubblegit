@@ -129,6 +129,15 @@ type mergePopup struct {
 	branch string
 }
 
+type themePopup struct {
+	active bool
+	idx    int
+
+	// original is the theme name in effect when the picker opened, so esc
+	// can undo the live previews.
+	original string
+}
+
 // inputAction identifies which git action inputPopup should dispatch on
 // submit - one popup, several purposes, same as commitPopup.reword.
 type inputAction int
@@ -286,6 +295,8 @@ type Model struct {
 
 	mergePopup mergePopup
 
+	themePopup themePopup
+
 	focus int
 	diff  viewport.Model
 	err   error
@@ -334,8 +345,8 @@ func NewModel(dir string) *Model {
 		inputPopup: inputPopup{
 			input: textinput.New(),
 		},
-		themeName: themeOrder[0],
-		theme:     themesByName[themeOrder[0]],
+		themeName: defaultTheme,
+		theme:     themesByName[defaultTheme],
 		useDelta:  true,
 		collapsed: make(map[string]bool),
 	}

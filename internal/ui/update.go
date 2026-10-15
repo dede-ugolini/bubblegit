@@ -72,6 +72,30 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	if m.themePopup.active {
+		if key, ok := msg.(tea.KeyMsg); ok {
+			switch key.String() {
+			case "up", "k":
+				m.themePopup.idx = (m.themePopup.idx - 1 + len(themeOrder)) % len(themeOrder)
+				m.setTheme(themeOrder[m.themePopup.idx])
+				return m, nil
+			case "down", "j":
+				m.themePopup.idx = (m.themePopup.idx + 1) % len(themeOrder)
+				m.setTheme(themeOrder[m.themePopup.idx])
+				return m, nil
+			case "enter":
+				// The previewed theme is already applied; just keep it.
+				m.themePopup.active = false
+				return m, nil
+			case "esc", "t":
+				m.setTheme(m.themePopup.original)
+				m.themePopup.active = false
+				return m, nil
+			}
+		}
+		return m, nil
+	}
+
 	if m.stashBranchPopup.active {
 		if key, ok := msg.(tea.KeyMsg); ok {
 			switch key.String() {
@@ -655,8 +679,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.diff.ScrollDown(8)
 
 		case "t":
-			// Cycle theme
-			m.themeName, m.theme = nextTheme(m.themeName)
+			// Open the theme picker, highlighting the current theme and
+			// remembering it so esc can undo the live preview.
+			m.themePopup.idx = themeIndex(m.themeName)
+			m.themePopup.original = m.themeName
+			m.themePopup.active = true
 
 		case "V":
 			// Toggle diff rendering mode (delta vs plain git)

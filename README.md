@@ -43,7 +43,7 @@ The TUI operates on the git repo in the current working directory.
 | `w` | Toggle the focused list panel's subpanel (file tree ↔ worktrees, branches ↔ tags) |
 | `0` | Jump to diff panel |
 | `+` / `-` | Toggle fullscreen / restore |
-| `t` | Cycle theme (system → nord → gruvbox → dracula → catppuccin → tokyonight → solarized) |
+| `t` | Open the theme picker |
 | `V` | Toggle diff renderer (delta ↔ plain git) |
 | `q` | Quit |
 
@@ -126,16 +126,22 @@ panel, like a log entry.
 
 ## Themes
 
-Press `t` to cycle between themes. Each theme sets its own background color
-(the **system** theme leaves the terminal's default untouched):
+Press `t` to open a picker listing these themes and move with `↑`/`k` and
+`↓`/`j` to preview each one live. Press `enter` to keep the previewed theme, or
+`esc` to cancel and restore the theme that was active when the picker opened.
+Each theme sets its own background color (the **system** theme leaves the
+terminal's default untouched):
 
-- **system** — uses your terminal's ANSI palette
-- **nord** — [Nord](https://www.nordtheme.com/) color palette
-- **gruvbox** — [Gruvbox Dark](https://github.com/morhetz/gruvbox)
-- **dracula** — [Dracula](https://draculatheme.com/)
 - **catppuccin** — [Catppuccin Mocha](https://catppuccin.com/)
-- **tokyonight** — [Tokyo Night](https://github.com/enkia/tokyo-night-vscode-theme)
+- **dracula** — [Dracula](https://draculatheme.com/)
+- **everforest** — [Everforest](https://github.com/sainnhe/everforest) Dark (medium)
+- **gruvbox** — [Gruvbox Dark](https://github.com/morhetz/gruvbox)
+- **kanagawa** — [Kanagawa](https://github.com/rebelot/kanagawa.nvim) (wave)
+- **nord** — [Nord](https://www.nordtheme.com/) color palette
+- **osakajade** — [Osaka Jade](https://omarchytheme.com/themes/osaka-jade)
 - **solarized** — [Solarized Dark](https://ethanschoonover.com/solarized/)
+- **system** — uses your terminal's ANSI palette
+- **tokyonight** — [Tokyo Night](https://github.com/enkia/tokyo-night-vscode-theme)
 
 ## Diff Rendering
 
