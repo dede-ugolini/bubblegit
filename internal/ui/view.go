@@ -74,7 +74,7 @@ func (m *Model) panelAt(x, y int) (target, row int, ok bool) {
 			// Border row: still a hit on the panel, no row under it.
 			return focus, -1, true
 		}
-		count := m.rowCount(focus)
+		count := m.viewRows(focus)
 		start, _ := visibleWindow(count, p.height, p.idx)
 		row = start + (y - top - 1)
 		if row >= count {
@@ -395,6 +395,8 @@ func (m *Model) renderView(focus int) string {
 	switch m.panels[focus].view {
 	case viewWorktrees:
 		return m.renderWorktrees()
+	case viewTags:
+		return m.renderTags()
 	}
 	switch focus {
 	case focusStag:
@@ -433,7 +435,10 @@ func (m *Model) renderFooter() string {
 		}
 		return detached + helpStyle.Render(fmt.Sprintf("↑/k ↓/j move · <space> stag · a stag/unstag all · d restore · w worktrees · t theme: %s · q quit", m.themeName)) + " · " + modeStr
 	case focusBranch:
-		return detached + helpStyle.Render(fmt.Sprintf("↑/k ↓/j move · enter checkout · n new branch · r rename · d delete · M merge · P push · R set remote · t theme: %s · q quit", m.themeName)) + " · " + modeStr
+		if m.panels[focusBranch].view == viewTags {
+			return detached + helpStyle.Render(fmt.Sprintf("↑/k ↓/j move · w branches · t theme: %s · q quit", m.themeName)) + " · " + modeStr
+		}
+		return detached + helpStyle.Render(fmt.Sprintf("↑/k ↓/j move · enter checkout · n new branch · r rename · d delete · w tags · M merge · P push · R set remote · t theme: %s · q quit", m.themeName)) + " · " + modeStr
 	case focusLog:
 		return detached + helpStyle.Render(fmt.Sprintf("↑/k ↓/j move · enter checkout · pgup/pgdown scroll · r reword · S squash · esc cancel · d drop last · T tag · t theme: %s · q quit", m.themeName)) + " · " + modeStr
 	case focusStash:

@@ -95,6 +95,7 @@
 
 ## Tags
 
+* [x] List tags
 * [x] Create tag
 * [ ] Delete tag
 * [ ] Rename tag

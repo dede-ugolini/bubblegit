@@ -29,6 +29,7 @@ type viewID int
 const (
 	viewMain viewID = iota
 	viewWorktrees
+	viewTags
 	viewCount
 )
 
@@ -43,6 +44,11 @@ type (
 	errMsg      struct{ err error }
 	tickMsg     struct{}
 	worktreeMsg []git.WorktreeEntry
+
+	// tagsListMsg carries the tags panel's list. It is distinct from tagsMsg,
+	// which carries the commit-hash -> tag-names map the log panel annotates
+	// commits with.
+	tagsListMsg []git.TagEntry
 
 	// detachedMsg carries the short hash HEAD points at when it is not on a
 	// local branch, and the empty string when it is. Since it is sent on
@@ -199,7 +205,7 @@ type panel struct {
 // view-toggle key. A panel with a single entry has nothing to cycle to.
 var panelViews = [focusCount][]viewID{
 	focusStag:   {viewMain, viewWorktrees},
-	focusBranch: {viewMain},
+	focusBranch: {viewMain, viewTags},
 	focusLog:    {viewMain},
 	focusStash:  {viewMain},
 }
@@ -258,6 +264,11 @@ type Model struct {
 	stashes []git.StashEntry
 
 	worktrees []git.WorktreeEntry
+
+	// tagList backs the tags subpanel of the branch panel. The m.tags map
+	// above is a different thing: tags keyed by the commit they point at,
+	// used to annotate the log.
+	tagList []git.TagEntry
 
 	// confirm is the modal "are you sure?" prompt. At most one is open at
 	// a time, so one value covers every destructive action instead of a
@@ -506,6 +517,8 @@ func (m *Model) viewRows(focus int) int {
 	switch m.panels[focus].view {
 	case viewWorktrees:
 		return len(m.worktrees)
+	case viewTags:
+		return len(m.tagList)
 	}
 	return m.rowCount(focus)
 }
@@ -602,6 +615,13 @@ func (m *Model) Refresh() tea.Cmd {
 				return errMsg{err}
 			}
 			return worktreeMsg(worktree)
+		},
+		func() tea.Msg {
+			tags, err := git.Tags(m.dir)
+			if err != nil {
+				return errMsg{err}
+			}
+			return tagsListMsg(tags)
 		},
 		func() tea.Msg {
 			// Detection never fails, so this never reports an error: an
