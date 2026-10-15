@@ -1163,3 +1163,37 @@ func TestWorktreesDetached(t *testing.T) {
 		t.Fatalf("detached worktree %q missing from %+v", linkedPath, got)
 	}
 }
+
+func TestDeleteWorktree(t *testing.T) {
+	dir := initRepo(t)
+
+	linked := filepath.Join(t.TempDir(), "linked")
+	run(t, dir, "git", "worktree", "add", "-b", "linked-branch", linked)
+
+	if err := DeleteWorktree(dir, linked); err != nil {
+		t.Fatalf("DeleteWorktree() error: %v", err)
+	}
+
+	// The registry no longer lists the removed worktree, and git no longer
+	// considers the directory a working tree.
+	got, err := Worktrees(dir)
+	if err != nil {
+		t.Fatalf("Worktrees() error: %v", err)
+	}
+	linkedPath, err := filepath.EvalSymlinks(linked)
+	if err == nil {
+		for _, w := range got {
+			if resolved, err := filepath.EvalSymlinks(w.Path); err == nil && resolved == linkedPath {
+				t.Errorf("worktree %q still listed after delete: %+v", linkedPath, got)
+			}
+		}
+	}
+	if len(got) != 1 {
+		t.Errorf("Worktrees() len = %d, want 1 after delete: %+v", len(got), got)
+	}
+
+	// An unknown path is reported as an error rather than silently ignored.
+	if err := DeleteWorktree(dir, filepath.Join(t.TempDir(), "nope")); err == nil {
+		t.Error("DeleteWorktree() on unknown path = nil, want an error")
+	}
+}

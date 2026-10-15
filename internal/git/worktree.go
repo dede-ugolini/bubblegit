@@ -68,3 +68,9 @@ func Worktrees(dir string) ([]WorktreeEntry, error) {
 	flush()
 	return worktrees, nil
 }
+
+// DeleteWorktree removes the linked worktree at path.
+func DeleteWorktree(dir, path string) error {
+	_, err := runGitWrite(dir, "worktree", "remove", path)
+	return err
+}

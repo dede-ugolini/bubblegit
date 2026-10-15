@@ -390,6 +390,14 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					onYes: m.handleDeleteBranch,
 				})
 			}
+			// Delete worktree
+			if m.panels[m.focus].view == viewWorktrees && len(m.worktrees) > 0 {
+				path := m.worktrees[m.panels[m.focus].idx].Path
+				m.ask(confirm{
+					title: "Delete worktree '" + path + "'?",
+					onYes: m.handleDeleteWorktree,
+				})
+			}
 			// Restore file
 			if m.focus == focusStag && m.panels[focusStag].view == viewMain {
 				if idx, ok := m.selectedFile(); ok {
@@ -1065,6 +1073,19 @@ func (m *Model) handlePush(branch string) tea.Msg {
 		return errMsg{err}
 	}
 	return branchesMsg(branches)
+}
+
+func (m *Model) handleDeleteWorktree() tea.Msg {
+	path := m.worktrees[m.panels[focusStag].idx].Path
+	err := git.DeleteWorktree(m.dir, path)
+	if err != nil {
+		return errMsg{err}
+	}
+	worktrees, err := git.Worktrees(m.dir)
+	if err != nil {
+		return errMsg{err}
+	}
+	return worktreeMsg(worktrees)
 }
 
 func (m *Model) handleRewordCommit() tea.Cmd {
