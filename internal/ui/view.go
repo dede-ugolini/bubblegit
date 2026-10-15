@@ -3,9 +3,7 @@ package ui
 import (
 	"fmt"
 	"image/color"
-	"path/filepath"
 	"strings"
-	"time"
 
 	"bubblegit/internal/git"
 
@@ -123,6 +121,8 @@ func (m *Model) View() tea.View {
 		return m.overlay(m.renderPopup(), 4, 4)
 	case m.tagPopup.active:
 		return m.overlay(m.renderTagPopup(), 4, 4)
+	case m.worktreePopup.active:
+		return m.overlay(m.renderWorktreePopup(), 3, 8)
 	case m.mergePopup.active:
 		return m.overlay(m.renderMergePopup(), 3, 5)
 	case m.stashBranchPopup.active:
@@ -255,18 +255,41 @@ func (m *Model) renderTagPopup() string {
 	return name + "\n" + message
 }
 
+// renderWorktreePopup draws the new-worktree prompt: a path field and an
+// optional branch field. The focused field is just the textinput's own
+// cursor, so no extra highlight is needed.
+func (m *Model) renderWorktreePopup() string {
+	help := lipgloss.NewStyle().Foreground(m.theme.Muted).
+		Render("tab switch · ctrl+s add · esc cancel")
+
+	return lipgloss.NewStyle().
+		Width(m.width / 3).
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(m.theme.FocusBorder).
+		Render("New worktree\n\n" +
+			m.worktreePopup.path.View() + "\n" +
+			m.worktreePopup.branch.View() + "\n" + help)
+}
+
 func (m *Model) renderNormalView() string {
 	// The four list panels are joined with newlines, but a layout that
 	// collapses one leaves it rendering as the empty string - and a blank
 	// line would then take its place, pushing every panel below it down the
 	// screen. So the separators follow the panels that are actually there.
-	rows := make([]string, 0, 4)
-	for _, r := range []string{m.renderFiles(), m.renderBranches(), m.renderLog(), m.renderStash()} {
+	rows := []string{
+		m.renderView(focusStag),
+		m.renderView(focusBranch),
+		m.renderView(focusLog),
+		m.renderView(focusStash),
+	}
+
+	visible := rows[:0]
+	for _, r := range rows {
 		if r != "" {
-			rows = append(rows, r)
+			visible = append(visible, r)
 		}
 	}
-	b := strings.Join(rows, "\n")
+	b := strings.Join(visible, "\n")
 
 	if m.err != nil {
 		b += "\n" + lipgloss.NewStyle().Foreground(m.theme.Error).Render(m.err.Error())
@@ -364,322 +387,26 @@ type fileIcon struct {
 	c color.Color
 }
 
-func (m *Model) renderFiles() string {
-	p := m.panels[focusStag]
-	if p.height <= 0 || p.width <= 0 {
-		return ""
+// renderView renders whichever view a list panel is currently showing. It
+// dispatches on the panel's active view first, then falls back to the
+// panel's own renderer, so adding a subpanel only means adding a case here
+// and in viewRows.
+func (m *Model) renderView(focus int) string {
+	switch m.panels[focus].view {
+	case viewWorktrees:
+		return m.renderWorktrees()
 	}
-	var s []string
-	red := lipgloss.NewStyle().Foreground(m.theme.Removed)
-	green := lipgloss.NewStyle().Foreground(m.theme.Added)
-	yellow := lipgloss.NewStyle().Foreground(m.theme.Conflict)
-	dirStyle := lipgloss.NewStyle().Foreground(m.theme.Accent)
-
-	start, end := visibleWindow(len(m.treeRows), p.height, m.panels[focusStag].idx)
-	for i := start; i < end; i++ {
-		row := m.treeRows[i]
-		selected := i == m.panels[focusStag].idx && m.focus == focusStag
-
-		if row.isDir {
-			glyph := "▾"
-			if m.collapsed[row.dir] {
-				glyph = "▸"
-			}
-			label := strings.Repeat("  ", row.depth) + glyph + " " + row.name + "/"
-			if selected {
-				// Deliberately plain text here: coloring the dir name first
-				// and only then wrapping in Width(...).Background(...) would
-				// hit the same nested-reset issue as the file rows below.
-				s = append(s, lipgloss.NewStyle().Width(p.width).Background(m.theme.Accent).Render(label))
-				continue
-			}
-			s = append(s, lipgloss.NewStyle().Width(p.width).Render(dirStyle.Render(label)))
-			continue
-		}
-
-		f := m.files[row.fileIdx]
-		stag := string(f.Index)
-		worktree := string(f.Worktree)
-		path := row.name
-
-		ext := strings.ToLower(filepath.Ext(f.Path))
-		var icon string
-		fileIcon, hasIcon := extIcons[ext]
-		if hasIcon {
-			icon = string(fileIcon.r)
-		}
-
-		// The two-space slot keeps files aligned with the directory glyph
-		// column of their ancestors.
-		indent := strings.Repeat("  ", row.depth) + "  "
-
-		if selected {
-			// Deliberately plain text here: coloring stag/worktree/path
-			// individually first and only then wrapping the joined line in
-			// Width(...).Background(...) would hit the same nested-reset
-			// issue as log/stash - see there. The icon is therefore left
-			// uncolored as well - its ANSI reset would wipe the highlight.
-			s = append(s, lipgloss.NewStyle().Width(p.width).Background(m.theme.Accent).Render(indent+stag+worktree+" "+icon+" "+path))
-			continue
-		}
-
-		switch {
-		case f.Untracked():
-			stag = red.Render(stag)
-			worktree = red.Render(worktree)
-
-		case f.Staged():
-			stag = green.Render(stag)
-			if f.Worktree == 'M' {
-				worktree = red.Render(worktree)
-				path = yellow.Render(path)
-			} else {
-				path = green.Render(path)
-			}
-
-		case f.Unstaged():
-			worktree = red.Render(worktree)
-		}
-
-		if hasIcon {
-			icon = lipgloss.NewStyle().Foreground(fileIcon.c).Render(icon)
-		}
-		s = append(s, lipgloss.NewStyle().Width(p.width).Render(indent+stag+worktree+" "+icon+" "+path))
+	switch focus {
+	case focusStag:
+		return m.renderFiles()
+	case focusBranch:
+		return m.renderBranches()
+	case focusLog:
+		return m.renderLog()
+	case focusStash:
+		return m.renderStash()
 	}
-
-	// The outer style deliberately has no Width of its own - see the note
-	// on renderStash.
-	if len(s) == 0 {
-		s = append(s, lipgloss.NewStyle().Width(p.width).Render(""))
-	}
-
-	return m.titledPanel(focusStag, "Files", 0, p.height, strings.Join(s, "\n"))
-}
-
-func (m *Model) renderBranches() string {
-	p := m.panels[focusBranch]
-	if p.height <= 0 || p.width <= 0 {
-		return ""
-	}
-	var names []string
-
-	start, end := visibleWindow(len(m.branches), p.height, m.panels[focusBranch].idx)
-	agoColor := lipgloss.NewStyle().Foreground(m.theme.Muted)
-	for i := start; i < end; i++ {
-		b := m.branches[i]
-		track := branchTrack(b)
-		ago := ""
-		if a := timeAgo(b.CommitTime, time.Now()); a != "" {
-			ago = fmt.Sprintf("%4s ", a)
-		}
-		if m.panels[focusBranch].idx == i && m.focus == focusBranch {
-			// Deliberately plain text here (time included): coloring any of
-			// it and only then wrapping in Width(...).Background(...) would
-			// hit the nested-reset issue seen in log/stash - see there.
-			row := ago + b.Name
-			if track != "" {
-				row += " " + track
-			}
-			prefix := "   "
-			if b.Current {
-				prefix = " * "
-			}
-			names = append(names, lipgloss.NewStyle().Width(p.width).Background(m.theme.Cursor).Render(prefix+row))
-			continue
-		}
-		name := b.Name
-		prefix := "   "
-		if b.Current {
-			prefix = " * "
-			name = lipgloss.NewStyle().Foreground(m.theme.Accent).Render(name)
-		}
-		row := agoColor.Render(ago) + name
-		if track != "" {
-			row += " " + track
-		}
-		names = append(names, lipgloss.NewStyle().Width(p.width).Render(prefix+row))
-	}
-
-	// The outer style deliberately has no Width of its own - see the note
-	// on renderStash.
-	if len(names) == 0 {
-		names = append(names, lipgloss.NewStyle().Width(p.width).Render(""))
-	}
-
-	return m.titledPanel(focusBranch, "Branches", 0, p.height, strings.Join(names, "\n"))
-}
-
-// branchTrack renders a branch's ahead/behind status relative to its
-// upstream as a compact suffix, e.g. "[ahead 1, behind 2]" or "[gone]".
-// Returns "" for branches that are in sync or have no upstream.
-func branchTrack(b git.BranchInfo) string {
-	var parts []string
-	if b.Ahead > 0 {
-		parts = append(parts, fmt.Sprintf("%d", b.Ahead))
-	}
-	if b.Behind > 0 {
-		parts = append(parts, fmt.Sprintf("%d", b.Behind))
-	}
-	if b.Gone {
-		parts = append(parts, "gone")
-	}
-	if len(parts) == 0 {
-		return ""
-	}
-	return strings.Join(parts, ", ")
-}
-
-// timeAgo renders t relative to now as a compact single-unit age like
-// lazygit's: "3m", "5h", "2d", "4w", "6mo" or "1y". A zero time (branch
-// with no commits) returns ""; sub-minute and future (clock-skewed) ages
-// both read as "1m".
-func timeAgo(t, now time.Time) string {
-	if t.IsZero() {
-		return ""
-	}
-	d := now.Sub(t)
-	if d < time.Minute {
-		return "1m"
-	}
-	switch {
-	case d < time.Hour:
-		return fmt.Sprintf("%dm", int(d/time.Minute))
-	case d < 24*time.Hour:
-		return fmt.Sprintf("%dh", int(d/time.Hour))
-	case d < 7*24*time.Hour:
-		return fmt.Sprintf("%dd", int(d/(24*time.Hour)))
-	case d < 30*24*time.Hour:
-		return fmt.Sprintf("%dw", int(d/(7*24*time.Hour)))
-	case d < 365*24*time.Hour:
-		return fmt.Sprintf("%dmo", int(d/(30*24*time.Hour)))
-	default:
-		return fmt.Sprintf("%dy", int(d/(365*24*time.Hour)))
-	}
-}
-
-// authorInitials returns an up-to-two-letter uppercase abbreviation for an
-// author name: the first letter of the first and last word ("John Francis
-// Doe" -> "JD"). Single-word names ("Linus") are just "L". Returns "" for an
-// empty/whitespace-only author so callers can skip rendering it.
-func authorInitials(author string) string {
-	words := strings.Fields(author)
-	if len(words) == 0 {
-		return ""
-	}
-	up := func(b byte) byte {
-		if b >= 'a' && b <= 'z' {
-			b -= 'a' - 'A'
-		}
-		return b
-	}
-	out := []byte{up(words[0][0])}
-	if len(words) > 1 {
-		out = append(out, up(words[len(words)-1][0]))
-	}
-	return string(out)
-}
-
-func (m *Model) renderLog() string {
-	p := m.panels[focusLog]
-	if p.height <= 0 || p.width <= 0 {
-		return ""
-	}
-
-	start, end := visibleWindow(len(m.log), p.height, m.panels[focusLog].idx)
-	dateColor := lipgloss.NewStyle().Foreground(m.theme.Date)
-	shortHashColor := lipgloss.NewStyle().Foreground(m.theme.Hash)
-	aheadColor := lipgloss.NewStyle().Foreground(m.theme.Ahead)
-	tagColor := lipgloss.NewStyle().Foreground(m.theme.Accent)
-	authorColor := lipgloss.NewStyle().Foreground(m.theme.Author)
-
-	lo, hi := m.squashAnchor, m.panels[focusLog].idx
-	if lo > hi {
-		lo, hi = hi, lo
-	}
-
-	var entrys []string
-	for i := start; i < end; i++ {
-		l := m.log[i]
-		tagStr := ""
-		if names := m.tags[l.Hash]; len(names) > 0 {
-			tagStr = "(" + strings.Join(names, ", ") + ")"
-		}
-		if (i == m.panels[focusLog].idx && m.focus == focusLog) || (m.squashMarking && i >= lo && i <= hi) {
-			// Deliberately plain text here: dateColor/shortHashColor each
-			// end in their own ANSI reset, which - nested inside this
-			// Background() - would wipe the highlight out from under the
-			// date and subject the moment it's hit (\x1b[m clears every
-			// SGR attribute, not just foreground).
-			plainLine := l.ShortHash + " " + l.Date
-			if tagStr != "" {
-				plainLine += " " + tagStr
-			}
-			if init := authorInitials(l.Author); init != "" {
-				plainLine += " " + init
-			}
-			entrys = append(entrys, lipgloss.NewStyle().Width(p.width).Background(m.theme.Cursor).Render(plainLine+" "+l.Subject))
-			continue
-		}
-		date := dateColor.Render(l.Date)
-		hashStyle := shortHashColor
-		if m.ahead[l.Hash] {
-			hashStyle = aheadColor
-		}
-		shortHash := hashStyle.Render(l.ShortHash)
-		line := shortHash + " " + date
-		if tagStr != "" {
-			line += " " + tagColor.Render(tagStr)
-		}
-		if init := authorInitials(l.Author); init != "" {
-			line += " " + authorColor.Render(init)
-		}
-		entrys = append(entrys, lipgloss.NewStyle().Width(p.width).Render(line+" "+l.Subject))
-	}
-	// The outer style deliberately has no Width of its own - see the
-	// matching note in renderStash below.
-	if len(entrys) == 0 {
-		entrys = append(entrys, lipgloss.NewStyle().Width(p.width).Render(""))
-	}
-	return m.titledPanel(focusLog, "Log", 0, p.height, strings.Join(entrys, "\n"))
-}
-
-func (m *Model) renderStash() string {
-	p := m.panels[focusStash]
-	if p.height <= 0 || p.width <= 0 {
-		return ""
-	}
-
-	start, end := visibleWindow(len(m.stashes), p.height, m.panels[focusStash].idx)
-	dateColor := lipgloss.NewStyle().Foreground(m.theme.Date)
-	refColor := lipgloss.NewStyle().Foreground(m.theme.Hash)
-
-	var entrys []string
-	for i := start; i < end; i++ {
-		s := m.stashes[i]
-		if i == m.panels[focusStash].idx && m.focus == focusStash {
-			// Deliberately plain text here: dateColor/refColor each end in
-			// their own ANSI reset, which - nested inside this Background()
-			// - would wipe the highlight out from under the date and
-			// message the moment it's hit (\x1b[m clears every SGR
-			// attribute, not just foreground).
-			line := s.Ref + " " + s.Date + " " + s.Message
-			entrys = append(entrys, lipgloss.NewStyle().Width(p.width).Background(m.theme.Cursor).Render(line))
-			continue
-		}
-		date := dateColor.Render(s.Date)
-		ref := refColor.Render(s.Ref)
-		line := ref + " " + date + " " + s.Message
-		entrys = append(entrys, lipgloss.NewStyle().Width(p.width).Render(line))
-	}
-	// The outer style deliberately has no Width of its own (re-applying
-	// Width on top of an already width-padded, already-styled line
-	// corrupts its background - see the highlighted branch below). That
-	// means an empty list has nothing to establish the panel's width, so
-	// the border collapses to zero. Pad a single blank line to hold it.
-	if len(entrys) == 0 {
-		entrys = append(entrys, lipgloss.NewStyle().Width(p.width).Render(""))
-	}
-	return m.titledPanel(focusStash, "Stash", 0, p.height, strings.Join(entrys, "\n"))
+	return ""
 }
 
 func (m *Model) renderFooter() string {
@@ -701,7 +428,10 @@ func (m *Model) renderFooter() string {
 	modeStr := helpStyle.Render("diff: " + mode + " · V toggle")
 	switch m.focus {
 	case focusStag:
-		return detached + helpStyle.Render(fmt.Sprintf("↑/k ↓/j move · <space> stag · a stag/unstag all · d restore · t theme: %s · q quit", m.themeName)) + " · " + modeStr
+		if m.panels[focusStag].view == viewWorktrees {
+			return detached + helpStyle.Render(fmt.Sprintf("↑/k ↓/j move · n new worktree · d remove · w files · t theme: %s · q quit", m.themeName)) + " · " + modeStr
+		}
+		return detached + helpStyle.Render(fmt.Sprintf("↑/k ↓/j move · <space> stag · a stag/unstag all · d restore · w worktrees · t theme: %s · q quit", m.themeName)) + " · " + modeStr
 	case focusBranch:
 		return detached + helpStyle.Render(fmt.Sprintf("↑/k ↓/j move · enter checkout · n new branch · r rename · d delete · M merge · P push · R set remote · t theme: %s · q quit", m.themeName)) + " · " + modeStr
 	case focusLog:

@@ -73,6 +73,14 @@
 * [x] Stash branch
 * [x] Stash clear
 
+## Worktree
+
+* [x] List worktrees
+* [x] Add worktree
+* [x] Remove worktree
+* [ ] Switch worktree
+* [ ] Prune worktrees
+
 ## Remote
 
 * [ ] Fetch

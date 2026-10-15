@@ -1073,3 +1073,199 @@ func TestSetRemote(t *testing.T) {
 		}
 	})
 }
+
+func TestWorktrees(t *testing.T) {
+	dir := initRepo(t)
+	main := defaultBranch(t, dir)
+
+	linked := filepath.Join(t.TempDir(), "linked")
+	run(t, dir, "git", "worktree", "add", "-b", "linked-branch", linked)
+
+	got, err := Worktrees(dir)
+	if err != nil {
+		t.Fatalf("Worktrees() error: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("Worktrees() len = %d, want 2: %+v", len(got), got)
+	}
+
+	// git reports resolved paths (and t.TempDir() is a symlink on some
+	// platforms), so key the lookup by resolved path on both sides.
+	byPath := map[string]WorktreeEntry{}
+	for _, w := range got {
+		resolved, err := filepath.EvalSymlinks(w.Path)
+		if err != nil {
+			t.Fatalf("EvalSymlinks(%q): %v", w.Path, err)
+		}
+		byPath[resolved] = w
+	}
+
+	mainPath, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	linkedPath, err := filepath.EvalSymlinks(linked)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	mainWT, ok := byPath[mainPath]
+	if !ok {
+		t.Fatalf("main worktree %q missing from %+v", mainPath, got)
+	}
+	if mainWT.Branch != main {
+		t.Errorf("main branch = %q, want %q", mainWT.Branch, main)
+	}
+	if want := revParse(t, dir, "HEAD"); mainWT.Hash != want {
+		t.Errorf("main hash = %q, want %q", mainWT.Hash, want)
+	}
+	if mainWT.ShortHash != mainWT.Hash[:7] {
+		t.Errorf("main ShortHash = %q, want first 7 of %q", mainWT.ShortHash, mainWT.Hash)
+	}
+
+	linkedWT, ok := byPath[linkedPath]
+	if !ok {
+		t.Fatalf("linked worktree %q missing from %+v", linkedPath, got)
+	}
+	if linkedWT.Branch != "linked-branch" {
+		t.Errorf("linked branch = %q, want %q", linkedWT.Branch, "linked-branch")
+	}
+}
+
+func TestWorktreesDetached(t *testing.T) {
+	dir := initRepo(t)
+	run(t, dir, "git", "commit", "-q", "--allow-empty", "-m", "second")
+
+	linked := filepath.Join(t.TempDir(), "det")
+	run(t, dir, "git", "worktree", "add", "--detach", linked, "HEAD~1")
+
+	got, err := Worktrees(dir)
+	if err != nil {
+		t.Fatalf("Worktrees() error: %v", err)
+	}
+
+	linkedPath, err := filepath.EvalSymlinks(linked)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var found bool
+	for _, w := range got {
+		resolved, err := filepath.EvalSymlinks(w.Path)
+		if err != nil || resolved != linkedPath {
+			continue
+		}
+		found = true
+		if w.Branch != "(detached)" {
+			t.Errorf("detached branch = %q, want %q", w.Branch, "(detached)")
+		}
+	}
+	if !found {
+		t.Fatalf("detached worktree %q missing from %+v", linkedPath, got)
+	}
+}
+
+func TestDeleteWorktree(t *testing.T) {
+	dir := initRepo(t)
+
+	linked := filepath.Join(t.TempDir(), "linked")
+	run(t, dir, "git", "worktree", "add", "-b", "linked-branch", linked)
+
+	if err := DeleteWorktree(dir, linked); err != nil {
+		t.Fatalf("DeleteWorktree() error: %v", err)
+	}
+
+	// The registry no longer lists the removed worktree, and git no longer
+	// considers the directory a working tree.
+	got, err := Worktrees(dir)
+	if err != nil {
+		t.Fatalf("Worktrees() error: %v", err)
+	}
+	linkedPath, err := filepath.EvalSymlinks(linked)
+	if err == nil {
+		for _, w := range got {
+			if resolved, err := filepath.EvalSymlinks(w.Path); err == nil && resolved == linkedPath {
+				t.Errorf("worktree %q still listed after delete: %+v", linkedPath, got)
+			}
+		}
+	}
+	if len(got) != 1 {
+		t.Errorf("Worktrees() len = %d, want 1 after delete: %+v", len(got), got)
+	}
+
+	// An unknown path is reported as an error rather than silently ignored.
+	if err := DeleteWorktree(dir, filepath.Join(t.TempDir(), "nope")); err == nil {
+		t.Error("DeleteWorktree() on unknown path = nil, want an error")
+	}
+}
+
+func TestAddWorktree(t *testing.T) {
+	t.Run("new branch", func(t *testing.T) {
+		dir := initRepo(t)
+		linked := filepath.Join(t.TempDir(), "linked")
+
+		if err := AddWorktree(dir, linked, "feature", true); err != nil {
+			t.Fatalf("AddWorktree() error: %v", err)
+		}
+		if branch := worktreeBranch(t, dir, linked); branch != "feature" {
+			t.Errorf("branch = %q, want %q", branch, "feature")
+		}
+	})
+
+	t.Run("existing branch", func(t *testing.T) {
+		dir := initRepo(t)
+		run(t, dir, "git", "branch", "existing")
+		linked := filepath.Join(t.TempDir(), "linked")
+
+		if err := AddWorktree(dir, linked, "existing", false); err != nil {
+			t.Fatalf("AddWorktree() error: %v", err)
+		}
+		if branch := worktreeBranch(t, dir, linked); branch != "existing" {
+			t.Errorf("branch = %q, want %q", branch, "existing")
+		}
+	})
+
+	t.Run("branch derived from path", func(t *testing.T) {
+		dir := initRepo(t)
+		// A known basename is what git derives the branch name from.
+		linked := filepath.Join(t.TempDir(), "derived")
+
+		if err := AddWorktree(dir, linked, "", false); err != nil {
+			t.Fatalf("AddWorktree() error: %v", err)
+		}
+		if branch := worktreeBranch(t, dir, linked); branch != "derived" {
+			t.Errorf("branch = %q, want git-derived %q", branch, "derived")
+		}
+	})
+
+	t.Run("existing path", func(t *testing.T) {
+		dir := initRepo(t)
+		linked := filepath.Join(t.TempDir(), "linked")
+		run(t, dir, "git", "worktree", "add", linked)
+
+		if err := AddWorktree(dir, linked, "", false); err == nil {
+			t.Error("AddWorktree() on an existing worktree path = nil, want an error")
+		}
+	})
+}
+
+// worktreeBranch returns the branch of the worktree at path, failing the test
+// if it is not listed. Paths are compared resolved, since git reports them
+// resolved and t.TempDir() is a symlink on some platforms.
+func worktreeBranch(t *testing.T, dir, path string) string {
+	t.Helper()
+	got, err := Worktrees(dir)
+	if err != nil {
+		t.Fatalf("Worktrees() error: %v", err)
+	}
+	want, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, w := range got {
+		if resolved, err := filepath.EvalSymlinks(w.Path); err == nil && resolved == want {
+			return w.Branch
+		}
+	}
+	t.Fatalf("worktree %q missing from %+v", want, got)
+	return ""
+}

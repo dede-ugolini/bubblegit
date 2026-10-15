@@ -21,6 +21,17 @@ const (
 	focusCount
 )
 
+// viewID identifies one of the views a panel can show. Every panel starts on
+// viewMain; a panel that has subpanels lists the extra ids in panelViews and
+// cycles between them.
+type viewID int
+
+const (
+	viewMain viewID = iota
+	viewWorktrees
+	viewCount
+)
+
 type (
 	filesMsg    []git.FileStatus
 	branchesMsg []git.BranchInfo
@@ -31,6 +42,7 @@ type (
 	diffMsg     struct{ diff string }
 	errMsg      struct{ err error }
 	tickMsg     struct{}
+	worktreeMsg []git.WorktreeEntry
 
 	// detachedMsg carries the short hash HEAD points at when it is not on a
 	// local branch, and the empty string when it is. Since it is sent on
@@ -149,14 +161,47 @@ type tagPopup struct {
 	hash string
 }
 
+const (
+	worktreeFocusPath = iota
+	worktreeFocusBranch
+)
+
+// worktreePopup collects the path and optional branch for a new worktree.
+// Both fields are single-line, so unlike the tag popup it needs no textarea.
+type worktreePopup struct {
+	path   textinput.Model
+	branch textinput.Model
+	focus  int
+	active bool
+}
+
 // panel is the geometry of one focusable list panel. The files, branch,
 // log and stash panels show different data but are laid out identically,
 // so their size lives here instead of a height/width pair per panel.
 type panel struct {
 	height, width int
 
-	// idx is the selected row within the panel.
+	// view is which of the panel's views is showing, indexing
+	// panelViews[focus]; the first entry is the panel's own content.
+	view viewID
+
+	// idx is the selected row within the active view.
 	idx int
+
+	// cursors remembers each view's cursor so switching views and back
+	// restores where the user left off. The active view's entry mirrors idx;
+	// cycleView swaps them.
+	cursors [viewCount]int
+}
+
+// panelViews lists, per panel, the views it can show in cycle order. The
+// first is the panel's own content; the rest are subpanels reached with the
+// view-toggle key. A panel with a single entry has nothing to cycle to.
+var panelViews = [focusCount][]viewID{
+	focusStag:   {viewMain, viewWorktrees},
+	focusBranch: {viewMain},
+	focusLog:    {viewMain},
+	focusStash:  {viewMain},
 }
 
 // clampRow bounds idx to a list of n rows, matching the order the panels
@@ -176,10 +221,6 @@ func clampRow(idx, n int) int {
 type Model struct {
 	dir string
 
-	// panels holds the geometry and cursor of each list panel, indexed by
-	// focus constant: panels[focusBranch] is the branch panel. focusDiff has
-	// no entry, because the diff panel's size lives in the viewport itself
-	// and it has no cursor.
 	panels [focusCount]panel
 
 	files []git.FileStatus
@@ -216,6 +257,8 @@ type Model struct {
 
 	stashes []git.StashEntry
 
+	worktrees []git.WorktreeEntry
+
 	// confirm is the modal "are you sure?" prompt. At most one is open at
 	// a time, so one value covers every destructive action instead of a
 	// bool plus a captured detail string per action.
@@ -223,6 +266,8 @@ type Model struct {
 
 	tagPopup    tagPopup
 	commitPopup commitPopup
+
+	worktreePopup worktreePopup
 
 	stashBranchPopup stashBranchPopup
 
@@ -267,6 +312,10 @@ func NewModel(dir string) *Model {
 		tagPopup: tagPopup{
 			tagName:    textinput.New(),
 			tagMessage: textarea.New(),
+		},
+		worktreePopup: worktreePopup{
+			path:   textinput.New(),
+			branch: textinput.New(),
 		},
 		stashBranchPopup: stashBranchPopup{
 			input: textinput.New(),
@@ -433,9 +482,9 @@ func (m *Model) setFullscreenLayout(focus, w, h int) {
 	m.diff.SetWidth(0)
 }
 
-// rowCount reports how many rows a list panel currently has. Each panel
-// counts a different slice: the files panel counts the flattened tree, not
-// m.files.
+// rowCount reports how many rows a list panel's own view currently has. Each
+// panel counts a different slice: the files panel counts the flattened tree,
+// not m.files.
 func (m *Model) rowCount(focus int) int {
 	switch focus {
 	case focusStag:
@@ -450,13 +499,24 @@ func (m *Model) rowCount(focus int) int {
 	return 0
 }
 
-// move moves a list panel's cursor by delta rows, clamped to the rows it
-// has. focusDiff has no cursor and is left alone.
+// viewRows reports how many rows the panel's active view currently has. It
+// falls back to rowCount for every panel's own content, so a new subpanel
+// only has to add a case here.
+func (m *Model) viewRows(focus int) int {
+	switch m.panels[focus].view {
+	case viewWorktrees:
+		return len(m.worktrees)
+	}
+	return m.rowCount(focus)
+}
+
+// move moves a list panel's active-view cursor by delta rows, clamped to the
+// rows it has. focusDiff has no cursor and is left alone.
 func (m *Model) move(focus, delta int) {
 	if focus == focusDiff {
 		return
 	}
-	m.panels[focus].idx = clampRow(m.panels[focus].idx+delta, m.rowCount(focus))
+	m.panels[focus].idx = clampRow(m.panels[focus].idx+delta, m.viewRows(focus))
 }
 
 // clampCursors re-clamps every list panel's cursor. Call it after replacing
@@ -464,7 +524,31 @@ func (m *Model) move(focus, delta int) {
 // moved) can't leave the cursor pointing past its end.
 func (m *Model) clampCursors() {
 	for i := focusStag; i < focusDiff; i++ {
-		m.panels[i].idx = clampRow(m.panels[i].idx, m.rowCount(i))
+		p := &m.panels[i]
+		p.idx = clampRow(p.idx, m.viewRows(i))
+		p.cursors[p.view] = p.idx
+	}
+}
+
+// cycleView advances the focused panel to its next view and back its cursor
+// to wherever that view was left. A panel with a single view does nothing.
+func (m *Model) cycleView() {
+	if m.focus == focusDiff {
+		return
+	}
+	p := &m.panels[m.focus]
+	views := panelViews[m.focus]
+	if len(views) < 2 {
+		return
+	}
+	for i, v := range views {
+		if v != p.view {
+			continue
+		}
+		p.cursors[p.view] = p.idx
+		p.view = views[(i+1)%len(views)]
+		p.idx = clampRow(p.cursors[p.view], m.viewRows(m.focus))
+		return
 	}
 }
 
@@ -511,6 +595,13 @@ func (m *Model) Refresh() tea.Cmd {
 				return errMsg{err}
 			}
 			return stashesMsg(stashes)
+		},
+		func() tea.Msg {
+			worktree, err := git.Worktrees(m.dir)
+			if err != nil {
+				return errMsg{err}
+			}
+			return worktreeMsg(worktree)
 		},
 		func() tea.Msg {
 			// Detection never fails, so this never reports an error: an

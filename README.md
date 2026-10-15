@@ -40,6 +40,7 @@ The TUI operates on the git repo in the current working directory.
 |-----|--------|
 | `Tab` | Cycle panels |
 | `1`-`4` | Jump to panel (1=Files, 2=Branch, 3=Log, 4=Stash) |
+| `w` | Toggle the Files panel between the file tree and the Worktrees list |
 | `0` | Jump to diff panel |
 | `+` / `-` | Toggle fullscreen / restore |
 | `t` | Cycle theme (system → nord) |
@@ -56,6 +57,23 @@ The TUI operates on the git repo in the current working directory.
 | `d` | Restore file (with confirm) |
 | `c` | Commit |
 | `A` | Amend HEAD (with confirm) |
+| `w` | Toggle between the file tree and the worktrees list |
+
+### Worktrees
+
+Press `w` to switch the Files panel to the repository's linked worktrees
+(branch, short hash and path).
+
+| Key | Action |
+|-----|--------|
+| `j`/`k` or `↑`/`↓` | Move |
+| `n` | Add a worktree (path plus an optional branch) |
+| `d` | Remove the selected worktree (with confirm) |
+| `w` | Toggle back to the file tree |
+
+When adding a worktree, leave the branch empty to let git name it from the
+path. Type the name of an existing local branch to check it out in the new
+worktree, or a new name to create that branch from HEAD.
 
 ### Branches
 

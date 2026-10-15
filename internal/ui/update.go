@@ -184,6 +184,51 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	}
 
+	if m.worktreePopup.active {
+		if key, ok := msg.(tea.KeyMsg); ok {
+			switch key.String() {
+			case "ctrl+s":
+				if m.worktreePopup.path.Value() == "" {
+					return m, nil
+				}
+				m.worktreePopup.path.Blur()
+				m.worktreePopup.branch.Blur()
+				m.worktreePopup.active = false
+				return m, tea.Sequence(m.handleAddWorktree, m.Refresh())
+			case "enter":
+				if m.worktreePopup.focus == worktreeFocusPath {
+					m.worktreePopup.path.Blur()
+					m.worktreePopup.branch.Focus()
+					m.worktreePopup.focus = worktreeFocusBranch
+				}
+				return m, nil
+			case "tab":
+				if m.worktreePopup.focus == worktreeFocusPath {
+					m.worktreePopup.path.Blur()
+					m.worktreePopup.branch.Focus()
+					m.worktreePopup.focus = worktreeFocusBranch
+				} else {
+					m.worktreePopup.branch.Blur()
+					m.worktreePopup.path.Focus()
+					m.worktreePopup.focus = worktreeFocusPath
+				}
+				return m, nil
+			case "esc":
+				m.worktreePopup.path.Blur()
+				m.worktreePopup.branch.Blur()
+				m.worktreePopup.active = false
+				return m, nil
+			}
+		}
+		var cmd tea.Cmd
+		if m.worktreePopup.focus == worktreeFocusPath {
+			m.worktreePopup.path, cmd = m.worktreePopup.path.Update(msg)
+			return m, cmd
+		}
+		m.worktreePopup.branch, cmd = m.worktreePopup.branch.Update(msg)
+		return m, cmd
+	}
+
 	if m.inputPopup.active {
 		if key, ok := msg.(tea.KeyMsg); ok {
 			switch key.String() {
@@ -312,6 +357,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.diff.SetContent(msg.diff)
 		return m, nil
 
+	case worktreeMsg:
+		m.worktrees = []git.WorktreeEntry(msg)
+		m.clampCursors()
+		return m, nil
+
 	case tea.MouseClickMsg:
 		m.mouseClick(msg.Mouse())
 		return m, m.showDiff()
@@ -334,6 +384,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case "tab":
 			m.focus = (m.focus + 1) % focusCount
+			return m, m.showDiff()
+
+		case "w", "ctrl+tab":
+			m.cycleView()
 			return m, m.showDiff()
 
 		case "0":
@@ -381,8 +435,16 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					onYes: m.handleDeleteBranch,
 				})
 			}
+			// Delete worktree
+			if m.panels[m.focus].view == viewWorktrees && len(m.worktrees) > 0 {
+				path := m.worktrees[m.panels[m.focus].idx].Path
+				m.ask(confirm{
+					title: "Delete worktree '" + path + "'?",
+					onYes: m.handleDeleteWorktree,
+				})
+			}
 			// Restore file
-			if m.focus == focusStag {
+			if m.focus == focusStag && m.panels[focusStag].view == viewMain {
 				if idx, ok := m.selectedFile(); ok {
 					m.ask(confirm{
 						title: "Restore '" + m.files[idx].Path + "'?",
@@ -454,6 +516,24 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.inputPopup.active = true
 				return m, textinput.Blink
 			}
+			// New worktree
+			if m.focus == focusStag && m.panels[focusStag].view == viewWorktrees {
+				m.worktreePopup.path.SetWidth(m.width / 3)
+				m.worktreePopup.branch.SetWidth(m.width / 3)
+				m.worktreePopup.path.CharLimit = 200
+				m.worktreePopup.branch.CharLimit = 100
+				m.worktreePopup.path.SetValue("")
+				m.worktreePopup.branch.SetValue("")
+				m.worktreePopup.path.Prompt = "path> "
+				m.worktreePopup.branch.Prompt = "branch> "
+				m.worktreePopup.path.Placeholder = "path (relative to repo)"
+				m.worktreePopup.branch.Placeholder = "branch (optional)"
+				m.worktreePopup.focus = worktreeFocusPath
+				m.worktreePopup.path.Focus()
+				m.worktreePopup.branch.Blur()
+				m.worktreePopup.active = true
+				return m, textinput.Blink
+			}
 
 		case "r":
 			// Rename Branch
@@ -478,7 +558,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case "enter":
 			// Expand/collapse file tree directory
-			if m.focus == focusStag && len(m.treeRows) > 0 {
+			if m.focus == focusStag && m.panels[focusStag].view == viewMain && len(m.treeRows) > 0 {
 				if row := m.treeRows[m.panels[focusStag].idx]; row.isDir {
 					if m.collapsed[row.dir] {
 						delete(m.collapsed, row.dir)
@@ -505,19 +585,19 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "space":
 			// stage/unstage file
-			if m.focus == focusStag {
+			if m.focus == focusStag && m.panels[focusStag].view == viewMain {
 				if _, ok := m.selectedFile(); ok {
 					return m, m.handleToggleStage
 				}
 			}
 		case "a":
 			// stage/unstage all
-			if m.focus == focusStag && len(m.files) > 0 {
+			if m.focus == focusStag && m.panels[focusStag].view == viewMain && len(m.files) > 0 {
 				return m, m.handleToggleStageAll
 			}
 		case "A":
 			// Amend commit
-			if m.focus == focusStag && len(m.files) > 0 && git.HasOneStaged(m.files) && len(m.log) > 0 {
+			if m.focus == focusStag && m.panels[focusStag].view == viewMain && len(m.files) > 0 && git.HasOneStaged(m.files) && len(m.log) > 0 {
 				m.ask(confirm{
 					title: "Amend commit '" + m.log[0].Subject + "'?",
 					onYes: m.handleAmend,
@@ -533,7 +613,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "c":
 			// Commit
-			if m.focus == focusStag && len(m.files) > 0 && git.HasOneStaged(m.files) {
+			if m.focus == focusStag && m.panels[focusStag].view == viewMain && len(m.files) > 0 && git.HasOneStaged(m.files) {
 				m.commitPopup.reword = false
 				m.commitPopup.rewordHash = ""
 				m.commitPopup.squash = false
@@ -639,6 +719,10 @@ func (m *Model) showDiff() tea.Cmd {
 	return func() tea.Msg {
 		switch m.focus {
 		case focusStag:
+			if m.panels[focusStag].view != viewMain {
+				// Worktrees are display-only, so there is no diff to show.
+				return diffMsg{}
+			}
 			idx, ok := m.selectedFile()
 			if !ok {
 				return diffMsg{}
@@ -1054,6 +1138,45 @@ func (m *Model) handlePush(branch string) tea.Msg {
 	return branchesMsg(branches)
 }
 
+func (m *Model) handleDeleteWorktree() tea.Msg {
+	path := m.worktrees[m.panels[focusStag].idx].Path
+	err := git.DeleteWorktree(m.dir, path)
+	if err != nil {
+		return errMsg{err}
+	}
+	worktrees, err := git.Worktrees(m.dir)
+	if err != nil {
+		return errMsg{err}
+	}
+	return worktreeMsg(worktrees)
+}
+
+// handleAddWorktree creates the worktree named in the popup. A branch that
+// already exists as a local branch is checked out; any other name is created
+// from HEAD. The caller sequences a Refresh afterwards, since a new branch
+// also appears in the branch panel.
+func (m *Model) handleAddWorktree() tea.Msg {
+	path := m.worktreePopup.path.Value()
+	branch := m.worktreePopup.branch.Value()
+	create := branch != "" && !m.branchExists(branch)
+	if err := git.AddWorktree(m.dir, path, branch, create); err != nil {
+		return errMsg{err}
+	}
+	return nil
+}
+
+// branchExists reports whether name is one of the repository's local
+// branches, which decides whether a new worktree checks out an existing
+// branch or creates one.
+func (m *Model) branchExists(name string) bool {
+	for _, b := range m.branches {
+		if b.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
 func (m *Model) handleRewordCommit() tea.Cmd {
 	entry := m.log[m.panels[focusLog].idx]
 	m.commitPopup.reword = true
@@ -1118,6 +1241,7 @@ func (m *Model) mouseClick(ms tea.Mouse) {
 		return
 	}
 	m.panels[target].idx = row
+	m.panels[target].cursors[m.panels[target].view] = row
 }
 
 // mouseWheel scrolls the diff viewport when the wheel is over the diff
