@@ -110,7 +110,7 @@ func (m *Model) View() tea.View {
 
 	// TODO: add spinner
 	if !m.ready {
-		return tea.NewView("Loading...")
+		return m.themed(tea.NewView("Loading..."))
 	}
 
 	// Popups are checked in order and at most one is ever open, since each
@@ -118,24 +118,35 @@ func (m *Model) View() tea.View {
 	// presentation-only, not a precedence rule.
 	switch {
 	case m.commitPopup.active:
-		return m.overlay(m.renderPopup(), 4, 4)
+		return m.themed(m.overlay(m.renderPopup(), 4, 4))
 	case m.tagPopup.active:
-		return m.overlay(m.renderTagPopup(), 4, 4)
+		return m.themed(m.overlay(m.renderTagPopup(), 4, 4))
 	case m.worktreePopup.active:
-		return m.overlay(m.renderWorktreePopup(), 3, 8)
+		return m.themed(m.overlay(m.renderWorktreePopup(), 3, 8))
 	case m.mergePopup.active:
-		return m.overlay(m.renderMergePopup(), 3, 5)
+		return m.themed(m.overlay(m.renderMergePopup(), 3, 5))
 	case m.stashBranchPopup.active:
-		return m.overlay(m.renderStashBranchPopup(), 3, 8)
+		return m.themed(m.overlay(m.renderStashBranchPopup(), 3, 8))
 	case m.confirm.active:
-		return m.overlay(m.renderConfirm(), 3, 8)
+		return m.themed(m.overlay(m.renderConfirm(), 3, 8))
 	case m.inputPopup.active:
-		return m.overlay(m.renderInputPopup(), 3, 8)
+		return m.themed(m.overlay(m.renderInputPopup(), 3, 8))
 	}
 
 	v := tea.NewView(m.renderNormalView())
 	v.AltScreen = true
 	v.MouseMode = tea.MouseModeCellMotion
+	return m.themed(v)
+}
+
+// themed stamps the theme's background color onto a view. Bubble Tea applies
+// it by changing the terminal's own background (OSC 11) rather than painting
+// each cell, so it shows through everywhere the rendered string leaves the
+// background unset - and, crucially, isn't wiped by the full SGR resets that
+// every nested Foreground style emits. A nil theme background (the "system"
+// theme) leaves the terminal's default color alone.
+func (m *Model) themed(v tea.View) tea.View {
+	v.BackgroundColor = m.theme.Background
 	return v
 }
 
