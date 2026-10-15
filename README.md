@@ -43,7 +43,7 @@ The TUI operates on the git repo in the current working directory.
 | `w` | Toggle the Files panel between the file tree and the Worktrees list |
 | `0` | Jump to diff panel |
 | `+` / `-` | Toggle fullscreen / restore |
-| `t` | Cycle theme (system → nord) |
+| `t` | Cycle theme (system → nord → gruvbox → dracula → catppuccin → tokyonight → solarized) |
 | `V` | Toggle diff renderer (delta ↔ plain git) |
 | `q` | Quit |
 
@@ -114,10 +114,16 @@ worktree, or a new name to create that branch from HEAD.
 
 ## Themes
 
-Press `t` to cycle between themes:
+Press `t` to cycle between themes. Each theme sets its own background color
+(the **system** theme leaves the terminal's default untouched):
 
 - **system** — uses your terminal's ANSI palette
 - **nord** — [Nord](https://www.nordtheme.com/) color palette
+- **gruvbox** — [Gruvbox Dark](https://github.com/morhetz/gruvbox)
+- **dracula** — [Dracula](https://draculatheme.com/)
+- **catppuccin** — [Catppuccin Mocha](https://catppuccin.com/)
+- **tokyonight** — [Tokyo Night](https://github.com/enkia/tokyo-night-vscode-theme)
+- **solarized** — [Solarized Dark](https://ethanschoonover.com/solarized/)
 
 ## Diff Rendering
 
