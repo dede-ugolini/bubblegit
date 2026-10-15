@@ -187,8 +187,6 @@ var themeSolarizedDark = Theme{
 	Author:      lipgloss.Color("#D33682"), // magenta
 }
 
-// themeOrder is the cycling order for the "t" keybind; themesByName must have
-// exactly these keys.
 var themeOrder = []string{
 	"system",
 	"nord",
@@ -209,16 +207,16 @@ var themesByName = map[string]Theme{
 	"solarized":  themeSolarizedDark,
 }
 
-// nextTheme returns the name and value of the theme that follows current
-// in themeOrder, wrapping around. An unrecognized current name (there
-// isn't one today, but NewModel shouldn't have to know that) falls back to
-// the first theme.
-func nextTheme(current string) (string, Theme) {
-	for i, name := range themeOrder {
-		if name == current {
-			next := themeOrder[(i+1)%len(themeOrder)]
-			return next, themesByName[next]
+func themeIndex(name string) int {
+	for i, n := range themeOrder {
+		if n == name {
+			return i
 		}
 	}
-	return themeOrder[0], themesByName[themeOrder[0]]
+	return 0
+}
+
+func (m *Model) setTheme(name string) {
+	m.themeName = name
+	m.theme = themesByName[name]
 }

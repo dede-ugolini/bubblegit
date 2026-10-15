@@ -123,6 +123,15 @@ type mergePopup struct {
 	branch string
 }
 
+type themePopup struct {
+	active bool
+	idx    int
+
+	// original is the theme name in effect when the picker opened, so esc
+	// can undo the live previews.
+	original string
+}
+
 // inputAction identifies which git action inputPopup should dispatch on
 // submit - one popup, several purposes, same as commitPopup.reword.
 type inputAction int
@@ -274,6 +283,8 @@ type Model struct {
 	inputPopup inputPopup
 
 	mergePopup mergePopup
+
+	themePopup themePopup
 
 	focus int
 	diff  viewport.Model

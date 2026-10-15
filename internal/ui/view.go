@@ -125,6 +125,8 @@ func (m *Model) View() tea.View {
 		return m.themed(m.overlay(m.renderWorktreePopup(), 3, 8))
 	case m.mergePopup.active:
 		return m.themed(m.overlay(m.renderMergePopup(), 3, 5))
+	case m.themePopup.active:
+		return m.themed(m.overlay(m.renderThemePopup(), 3, 3))
 	case m.stashBranchPopup.active:
 		return m.themed(m.overlay(m.renderStashBranchPopup(), 3, 8))
 	case m.confirm.active:
@@ -139,15 +141,55 @@ func (m *Model) View() tea.View {
 	return m.themed(v)
 }
 
-// themed stamps the theme's background color onto a view. Bubble Tea applies
-// it by changing the terminal's own background (OSC 11) rather than painting
-// each cell, so it shows through everywhere the rendered string leaves the
-// background unset - and, crucially, isn't wiped by the full SGR resets that
-// every nested Foreground style emits. A nil theme background (the "system"
-// theme) leaves the terminal's default color alone.
+// themed stamps the theme's background color onto a view, both as the
+// terminal's own background (View.BackgroundColor, so cells the renderer never
+// touches pick it up) and painted into the content itself, which is what fills
+// the right-hand end of short lines and the rows below the content - the
+// terminal-background route alone leaves those showing through. A nil theme
+// background (the "system" theme) leaves everything as it was.
 func (m *Model) themed(v tea.View) tea.View {
 	v.BackgroundColor = m.theme.Background
+	v.Content = paintBackground(v.Content, m.theme.Background, m.width, m.height)
 	return v
+}
+
+// bgSequence returns the SGR sequence that sets c as the background color, or
+// "" when c is nil. Rendering a sentinel through a Background style lets
+// lipgloss pick the right form (4-bit, 256-color or truecolor) instead of
+// reimplementing that choice here.
+func bgSequence(c color.Color) string {
+	if c == nil {
+		return ""
+	}
+	s := lipgloss.NewStyle().Background(c).Render("\x00")
+	if i := strings.IndexByte(s, 0); i > 0 {
+		return s[:i]
+	}
+	return ""
+}
+
+// paintBackground forces every cell of a rendered view onto the theme's
+// background color, padding each line out to width and adding blank rows up to
+// height so the whole window is covered. Nested Foreground styles each end in
+// a full SGR reset (\x1b[m), which clears the background too, so the sequence
+// is re-applied after every one of them - otherwise the padding and any text
+// following a colored run would fall back to the terminal's color.
+func paintBackground(s string, c color.Color, width, height int) string {
+	bg := bgSequence(c)
+	if bg == "" {
+		return s
+	}
+	lines := strings.Split(s, "\n")
+	for i, line := range lines {
+		line = strings.ReplaceAll(line, "\x1b[m", "\x1b[m"+bg)
+		line = strings.ReplaceAll(line, "\x1b[0m", "\x1b[0m"+bg)
+		pad := max(width-lipgloss.Width(line), 0)
+		lines[i] = bg + line + strings.Repeat(" ", pad) + "\x1b[m"
+	}
+	for len(lines) < height {
+		lines = append(lines, bg+strings.Repeat(" ", max(width, 0))+"\x1b[m")
+	}
+	return strings.Join(lines, "\n")
 }
 
 // overlay centers a popup on top of the normal UI. wDiv and hDiv are the
@@ -210,6 +252,41 @@ func (m *Model) renderMergePopup() string {
 			style = style.Background(m.theme.Accent)
 		}
 		lines = append(lines, style.Render(prefix+mode.String()))
+	}
+
+	return lipgloss.NewStyle().
+		Width(m.width / 3).
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(m.theme.FocusBorder).
+		Render(strings.Join(lines, "\n") + "\n\n" + help)
+}
+
+// renderThemePopup draws the theme picker: one row per theme, the cursor row
+// highlighted, and the theme currently in effect marked.
+func (m *Model) renderThemePopup() string {
+	help := lipgloss.NewStyle().Foreground(m.theme.Muted).
+		Render("↑/k ↓/j select · enter apply · esc cancel")
+
+	// The rows are padded to the border's content width, not the box width:
+	// Width counts the border columns, so a row styled to the full box width
+	// would be two columns too wide and get re-wrapped by the outer style,
+	// leaving the highlight short of the edge.
+	content := max(m.width/3-2, 0)
+
+	var lines []string
+	lines = append(lines, "Theme:")
+	for i, name := range themeOrder {
+		prefix := "  "
+		style := lipgloss.NewStyle().Width(content)
+		if m.themePopup.idx == i {
+			prefix = "› "
+			style = style.Background(m.theme.Accent)
+		}
+		label := name
+		if name == m.themePopup.original {
+			label += " (current)"
+		}
+		lines = append(lines, style.Render(prefix+label))
 	}
 
 	return lipgloss.NewStyle().
