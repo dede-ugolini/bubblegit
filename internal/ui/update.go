@@ -184,6 +184,51 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	}
 
+	if m.worktreePopup.active {
+		if key, ok := msg.(tea.KeyMsg); ok {
+			switch key.String() {
+			case "ctrl+s":
+				if m.worktreePopup.path.Value() == "" {
+					return m, nil
+				}
+				m.worktreePopup.path.Blur()
+				m.worktreePopup.branch.Blur()
+				m.worktreePopup.active = false
+				return m, tea.Sequence(m.handleAddWorktree, m.Refresh())
+			case "enter":
+				if m.worktreePopup.focus == worktreeFocusPath {
+					m.worktreePopup.path.Blur()
+					m.worktreePopup.branch.Focus()
+					m.worktreePopup.focus = worktreeFocusBranch
+				}
+				return m, nil
+			case "tab":
+				if m.worktreePopup.focus == worktreeFocusPath {
+					m.worktreePopup.path.Blur()
+					m.worktreePopup.branch.Focus()
+					m.worktreePopup.focus = worktreeFocusBranch
+				} else {
+					m.worktreePopup.branch.Blur()
+					m.worktreePopup.path.Focus()
+					m.worktreePopup.focus = worktreeFocusPath
+				}
+				return m, nil
+			case "esc":
+				m.worktreePopup.path.Blur()
+				m.worktreePopup.branch.Blur()
+				m.worktreePopup.active = false
+				return m, nil
+			}
+		}
+		var cmd tea.Cmd
+		if m.worktreePopup.focus == worktreeFocusPath {
+			m.worktreePopup.path, cmd = m.worktreePopup.path.Update(msg)
+			return m, cmd
+		}
+		m.worktreePopup.branch, cmd = m.worktreePopup.branch.Update(msg)
+		return m, cmd
+	}
+
 	if m.inputPopup.active {
 		if key, ok := msg.(tea.KeyMsg); ok {
 			switch key.String() {
@@ -469,6 +514,24 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.inputPopup.input.Placeholder = "stash message (optional)"
 				m.inputPopup.input.Focus()
 				m.inputPopup.active = true
+				return m, textinput.Blink
+			}
+			// New worktree
+			if m.focus == focusStag && m.panels[focusStag].view == viewWorktrees {
+				m.worktreePopup.path.SetWidth(m.width / 3)
+				m.worktreePopup.branch.SetWidth(m.width / 3)
+				m.worktreePopup.path.CharLimit = 200
+				m.worktreePopup.branch.CharLimit = 100
+				m.worktreePopup.path.SetValue("")
+				m.worktreePopup.branch.SetValue("")
+				m.worktreePopup.path.Prompt = "path> "
+				m.worktreePopup.branch.Prompt = "branch> "
+				m.worktreePopup.path.Placeholder = "path (relative to repo)"
+				m.worktreePopup.branch.Placeholder = "branch (optional)"
+				m.worktreePopup.focus = worktreeFocusPath
+				m.worktreePopup.path.Focus()
+				m.worktreePopup.branch.Blur()
+				m.worktreePopup.active = true
 				return m, textinput.Blink
 			}
 
@@ -1086,6 +1149,32 @@ func (m *Model) handleDeleteWorktree() tea.Msg {
 		return errMsg{err}
 	}
 	return worktreeMsg(worktrees)
+}
+
+// handleAddWorktree creates the worktree named in the popup. A branch that
+// already exists as a local branch is checked out; any other name is created
+// from HEAD. The caller sequences a Refresh afterwards, since a new branch
+// also appears in the branch panel.
+func (m *Model) handleAddWorktree() tea.Msg {
+	path := m.worktreePopup.path.Value()
+	branch := m.worktreePopup.branch.Value()
+	create := branch != "" && !m.branchExists(branch)
+	if err := git.AddWorktree(m.dir, path, branch, create); err != nil {
+		return errMsg{err}
+	}
+	return nil
+}
+
+// branchExists reports whether name is one of the repository's local
+// branches, which decides whether a new worktree checks out an existing
+// branch or creates one.
+func (m *Model) branchExists(name string) bool {
+	for _, b := range m.branches {
+		if b.Name == name {
+			return true
+		}
+	}
+	return false
 }
 
 func (m *Model) handleRewordCommit() tea.Cmd {

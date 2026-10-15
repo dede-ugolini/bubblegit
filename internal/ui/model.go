@@ -161,6 +161,20 @@ type tagPopup struct {
 	hash string
 }
 
+const (
+	worktreeFocusPath = iota
+	worktreeFocusBranch
+)
+
+// worktreePopup collects the path and optional branch for a new worktree.
+// Both fields are single-line, so unlike the tag popup it needs no textarea.
+type worktreePopup struct {
+	path   textinput.Model
+	branch textinput.Model
+	focus  int
+	active bool
+}
+
 // panel is the geometry of one focusable list panel. The files, branch,
 // log and stash panels show different data but are laid out identically,
 // so their size lives here instead of a height/width pair per panel.
@@ -253,6 +267,8 @@ type Model struct {
 	tagPopup    tagPopup
 	commitPopup commitPopup
 
+	worktreePopup worktreePopup
+
 	stashBranchPopup stashBranchPopup
 
 	inputPopup inputPopup
@@ -296,6 +312,10 @@ func NewModel(dir string) *Model {
 		tagPopup: tagPopup{
 			tagName:    textinput.New(),
 			tagMessage: textarea.New(),
+		},
+		worktreePopup: worktreePopup{
+			path:   textinput.New(),
+			branch: textinput.New(),
 		},
 		stashBranchPopup: stashBranchPopup{
 			input: textinput.New(),

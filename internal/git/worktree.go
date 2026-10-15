@@ -74,3 +74,20 @@ func DeleteWorktree(dir, path string) error {
 	_, err := runGitWrite(dir, "worktree", "remove", path)
 	return err
 }
+
+// AddWorktree links a new working tree at path. An empty branch lets git
+// name the branch from path's basename; create true makes a new branch with
+// -b, false checks out a branch that must already exist. Like the other
+// worktree operations it mutates the repository, so it takes the write lock.
+func AddWorktree(dir, path, branch string, create bool) error {
+	args := []string{"worktree", "add"}
+	if branch != "" && create {
+		args = append(args, "-b", branch)
+	}
+	args = append(args, path)
+	if branch != "" && !create {
+		args = append(args, branch)
+	}
+	_, err := runGitWrite(dir, args...)
+	return err
+}

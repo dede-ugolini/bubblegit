@@ -7,6 +7,22 @@ import (
 	"bubblegit/internal/git"
 )
 
+func TestRenderWorktreePopup(t *testing.T) {
+	m := NewModel(".")
+	m.width, m.height = 100, 40
+	m.worktreePopup.active = true
+	m.worktreePopup.path.Prompt = "path> "
+	m.worktreePopup.branch.Prompt = "branch> "
+	m.worktreePopup.path.Focus()
+
+	out := m.renderWorktreePopup()
+	for _, want := range []string{"New worktree", "path> ", "branch> ", "ctrl+s add", "cancel"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("renderWorktreePopup() missing %q in:\n%s", want, out)
+		}
+	}
+}
+
 func TestRenderWorktrees(t *testing.T) {
 	m := NewModel(".")
 	m.width, m.height = 100, 40

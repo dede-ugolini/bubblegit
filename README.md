@@ -59,8 +59,21 @@ The TUI operates on the git repo in the current working directory.
 | `A` | Amend HEAD (with confirm) |
 | `w` | Toggle between the file tree and the worktrees list |
 
-Press `w` to switch the Files panel to a read-only list of the repository's
-linked worktrees (branch, short hash and path).
+### Worktrees
+
+Press `w` to switch the Files panel to the repository's linked worktrees
+(branch, short hash and path).
+
+| Key | Action |
+|-----|--------|
+| `j`/`k` or `↑`/`↓` | Move |
+| `n` | Add a worktree (path plus an optional branch) |
+| `d` | Remove the selected worktree (with confirm) |
+| `w` | Toggle back to the file tree |
+
+When adding a worktree, leave the branch empty to let git name it from the
+path. Type the name of an existing local branch to check it out in the new
+worktree, or a new name to create that branch from HEAD.
 
 ### Branches
 

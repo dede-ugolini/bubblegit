@@ -1197,3 +1197,75 @@ func TestDeleteWorktree(t *testing.T) {
 		t.Error("DeleteWorktree() on unknown path = nil, want an error")
 	}
 }
+
+func TestAddWorktree(t *testing.T) {
+	t.Run("new branch", func(t *testing.T) {
+		dir := initRepo(t)
+		linked := filepath.Join(t.TempDir(), "linked")
+
+		if err := AddWorktree(dir, linked, "feature", true); err != nil {
+			t.Fatalf("AddWorktree() error: %v", err)
+		}
+		if branch := worktreeBranch(t, dir, linked); branch != "feature" {
+			t.Errorf("branch = %q, want %q", branch, "feature")
+		}
+	})
+
+	t.Run("existing branch", func(t *testing.T) {
+		dir := initRepo(t)
+		run(t, dir, "git", "branch", "existing")
+		linked := filepath.Join(t.TempDir(), "linked")
+
+		if err := AddWorktree(dir, linked, "existing", false); err != nil {
+			t.Fatalf("AddWorktree() error: %v", err)
+		}
+		if branch := worktreeBranch(t, dir, linked); branch != "existing" {
+			t.Errorf("branch = %q, want %q", branch, "existing")
+		}
+	})
+
+	t.Run("branch derived from path", func(t *testing.T) {
+		dir := initRepo(t)
+		// A known basename is what git derives the branch name from.
+		linked := filepath.Join(t.TempDir(), "derived")
+
+		if err := AddWorktree(dir, linked, "", false); err != nil {
+			t.Fatalf("AddWorktree() error: %v", err)
+		}
+		if branch := worktreeBranch(t, dir, linked); branch != "derived" {
+			t.Errorf("branch = %q, want git-derived %q", branch, "derived")
+		}
+	})
+
+	t.Run("existing path", func(t *testing.T) {
+		dir := initRepo(t)
+		linked := filepath.Join(t.TempDir(), "linked")
+		run(t, dir, "git", "worktree", "add", linked)
+
+		if err := AddWorktree(dir, linked, "", false); err == nil {
+			t.Error("AddWorktree() on an existing worktree path = nil, want an error")
+		}
+	})
+}
+
+// worktreeBranch returns the branch of the worktree at path, failing the test
+// if it is not listed. Paths are compared resolved, since git reports them
+// resolved and t.TempDir() is a symlink on some platforms.
+func worktreeBranch(t *testing.T, dir, path string) string {
+	t.Helper()
+	got, err := Worktrees(dir)
+	if err != nil {
+		t.Fatalf("Worktrees() error: %v", err)
+	}
+	want, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, w := range got {
+		if resolved, err := filepath.EvalSymlinks(w.Path); err == nil && resolved == want {
+			return w.Branch
+		}
+	}
+	t.Fatalf("worktree %q missing from %+v", want, got)
+	return ""
+}

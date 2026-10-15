@@ -76,7 +76,7 @@
 ## Worktree
 
 * [x] List worktrees
-* [ ] Add worktree
+* [x] Add worktree
 * [x] Remove worktree
 * [ ] Switch worktree
 * [ ] Prune worktrees

@@ -121,6 +121,8 @@ func (m *Model) View() tea.View {
 		return m.overlay(m.renderPopup(), 4, 4)
 	case m.tagPopup.active:
 		return m.overlay(m.renderTagPopup(), 4, 4)
+	case m.worktreePopup.active:
+		return m.overlay(m.renderWorktreePopup(), 3, 8)
 	case m.mergePopup.active:
 		return m.overlay(m.renderMergePopup(), 3, 5)
 	case m.stashBranchPopup.active:
@@ -251,6 +253,22 @@ func (m *Model) renderTagPopup() string {
 		Render(m.tagPopup.tagMessage.View())
 
 	return name + "\n" + message
+}
+
+// renderWorktreePopup draws the new-worktree prompt: a path field and an
+// optional branch field. The focused field is just the textinput's own
+// cursor, so no extra highlight is needed.
+func (m *Model) renderWorktreePopup() string {
+	help := lipgloss.NewStyle().Foreground(m.theme.Muted).
+		Render("tab switch · ctrl+s add · esc cancel")
+
+	return lipgloss.NewStyle().
+		Width(m.width / 3).
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(m.theme.FocusBorder).
+		Render("New worktree\n\n" +
+			m.worktreePopup.path.View() + "\n" +
+			m.worktreePopup.branch.View() + "\n" + help)
 }
 
 func (m *Model) renderNormalView() string {
@@ -410,6 +428,9 @@ func (m *Model) renderFooter() string {
 	modeStr := helpStyle.Render("diff: " + mode + " · V toggle")
 	switch m.focus {
 	case focusStag:
+		if m.panels[focusStag].view == viewWorktrees {
+			return detached + helpStyle.Render(fmt.Sprintf("↑/k ↓/j move · n new worktree · d remove · w files · t theme: %s · q quit", m.themeName)) + " · " + modeStr
+		}
 		return detached + helpStyle.Render(fmt.Sprintf("↑/k ↓/j move · <space> stag · a stag/unstag all · d restore · w worktrees · t theme: %s · q quit", m.themeName)) + " · " + modeStr
 	case focusBranch:
 		return detached + helpStyle.Render(fmt.Sprintf("↑/k ↓/j move · enter checkout · n new branch · r rename · d delete · M merge · P push · R set remote · t theme: %s · q quit", m.themeName)) + " · " + modeStr
