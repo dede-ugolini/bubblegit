@@ -78,41 +78,22 @@ var themeSystem = Theme{
 	Author:      lipgloss.ANSIColor(13),
 }
 
-// themeNord maps the same slots onto the Nord palette
-// (https://www.nordtheme.com/), fixed hex colors instead of terminal ANSI
-// slots.
-var themeNord = Theme{
-	Background:  lipgloss.Color("#2E3440"), // nord0  - polar night, bg
-	FocusBorder: lipgloss.Color("#88C0D0"), // nord8  - frost, light cyan
-	Cursor:      lipgloss.Color("#5E81AC"), // nord10 - frost, dark blue
-	Accent:      lipgloss.Color("#EBCB8B"), // nord13 - aurora, yellow
-	Added:       lipgloss.Color("#A3BE8C"), // nord14 - aurora, green
-	Removed:     lipgloss.Color("#BF616A"), // nord11 - aurora, red
-	Conflict:    lipgloss.Color("#D08770"), // nord12 - aurora, orange
-	Error:       lipgloss.Color("#BF616A"), // nord11 - aurora, red
-	Muted:       lipgloss.Color("#4C566A"), // nord3  - polar night, gray
-	Date:        lipgloss.Color("#81A1C1"), // nord9  - frost, blue
-	Hash:        lipgloss.Color("#8FBCBB"), // nord7  - frost, teal
-	Ahead:       lipgloss.Color("#A3BE8C"), // nord14 - aurora, green
-	Author:      lipgloss.Color("#B48EAD"), // nord15 - frost, purple
-}
-
-// themeGruvboxDark maps the slots onto Gruvbox Dark
-// (https://github.com/morhetz/gruvbox).
-var themeGruvboxDark = Theme{
-	Background:  lipgloss.Color("#282828"), // bg0
-	FocusBorder: lipgloss.Color("#83A598"), // bright blue
-	Cursor:      lipgloss.Color("#458588"), // neutral blue
-	Accent:      lipgloss.Color("#FABD2F"), // bright yellow
-	Added:       lipgloss.Color("#B8BB26"), // bright green
-	Removed:     lipgloss.Color("#FB4934"), // bright red
-	Conflict:    lipgloss.Color("#FE8019"), // bright orange
-	Error:       lipgloss.Color("#FB4934"), // bright red
-	Muted:       lipgloss.Color("#928374"), // gray
-	Date:        lipgloss.Color("#83A598"), // bright blue
-	Hash:        lipgloss.Color("#8EC07C"), // bright aqua
-	Ahead:       lipgloss.Color("#B8BB26"), // bright green
-	Author:      lipgloss.Color("#D3869B"), // bright purple
+// themeCatppuccinMocha maps the slots onto Catppuccin Mocha
+// (https://catppuccin.com/).
+var themeCatppuccinMocha = Theme{
+	Background:  lipgloss.Color("#1E1E2E"), // base
+	FocusBorder: lipgloss.Color("#89B4FA"), // blue
+	Cursor:      lipgloss.Color("#45475A"), // surface1
+	Accent:      lipgloss.Color("#F9E2AF"), // yellow
+	Added:       lipgloss.Color("#A6E3A1"), // green
+	Removed:     lipgloss.Color("#F38BA8"), // red
+	Conflict:    lipgloss.Color("#FAB387"), // peach
+	Error:       lipgloss.Color("#F38BA8"), // red
+	Muted:       lipgloss.Color("#6C7086"), // overlay0
+	Date:        lipgloss.Color("#89DCEB"), // sky
+	Hash:        lipgloss.Color("#94E2D5"), // teal
+	Ahead:       lipgloss.Color("#A6E3A1"), // green
+	Author:      lipgloss.Color("#CBA6F7"), // mauve
 }
 
 // themeDracula maps the slots onto the Dracula palette
@@ -133,40 +114,95 @@ var themeDracula = Theme{
 	Author:      lipgloss.Color("#FF79C6"), // pink
 }
 
-// themeCatppuccinMocha maps the slots onto Catppuccin Mocha
-// (https://catppuccin.com/).
-var themeCatppuccinMocha = Theme{
-	Background:  lipgloss.Color("#1E1E2E"), // base
-	FocusBorder: lipgloss.Color("#89B4FA"), // blue
-	Cursor:      lipgloss.Color("#45475A"), // surface1
-	Accent:      lipgloss.Color("#F9E2AF"), // yellow
-	Added:       lipgloss.Color("#A6E3A1"), // green
-	Removed:     lipgloss.Color("#F38BA8"), // red
-	Conflict:    lipgloss.Color("#FAB387"), // peach
-	Error:       lipgloss.Color("#F38BA8"), // red
-	Muted:       lipgloss.Color("#6C7086"), // overlay0
-	Date:        lipgloss.Color("#89DCEB"), // sky
-	Hash:        lipgloss.Color("#94E2D5"), // teal
-	Ahead:       lipgloss.Color("#A6E3A1"), // green
-	Author:      lipgloss.Color("#CBA6F7"), // mauve
+// themeEverforest maps the slots onto Everforest Dark (medium)
+// (https://github.com/sainnhe/everforest).
+var themeEverforest = Theme{
+	Background:  lipgloss.Color("#2D353B"), // bg0
+	FocusBorder: lipgloss.Color("#7FBBB3"), // blue
+	Cursor:      lipgloss.Color("#475258"), // bg3
+	Accent:      lipgloss.Color("#DBBC7F"), // yellow
+	Added:       lipgloss.Color("#A7C080"), // green
+	Removed:     lipgloss.Color("#E67E80"), // red
+	Conflict:    lipgloss.Color("#E69875"), // orange
+	Error:       lipgloss.Color("#E67E80"), // red
+	Muted:       lipgloss.Color("#7A8478"), // grey0
+	Date:        lipgloss.Color("#7FBBB3"), // blue
+	Hash:        lipgloss.Color("#83C092"), // aqua
+	Ahead:       lipgloss.Color("#A7C080"), // green
+	Author:      lipgloss.Color("#D699B6"), // purple
 }
 
-// themeTokyoNight maps the slots onto Tokyo Night
-// (https://github.com/enkia/tokyo-night-vscode-theme).
-var themeTokyoNight = Theme{
-	Background:  lipgloss.Color("#1A1B26"), // bg
-	FocusBorder: lipgloss.Color("#7AA2F7"), // blue
-	Cursor:      lipgloss.Color("#33467C"), // bg highlight
-	Accent:      lipgloss.Color("#E0AF68"), // yellow
-	Added:       lipgloss.Color("#9ECE6A"), // green
-	Removed:     lipgloss.Color("#F7768E"), // red
-	Conflict:    lipgloss.Color("#FF9E64"), // orange
-	Error:       lipgloss.Color("#F7768E"), // red
-	Muted:       lipgloss.Color("#565F89"), // comment
-	Date:        lipgloss.Color("#7DCFFF"), // cyan
-	Hash:        lipgloss.Color("#73DACA"), // teal
-	Ahead:       lipgloss.Color("#9ECE6A"), // green
-	Author:      lipgloss.Color("#BB9AF7"), // magenta
+// themeGruvboxDark maps the slots onto Gruvbox Dark
+// (https://github.com/morhetz/gruvbox).
+var themeGruvboxDark = Theme{
+	Background:  lipgloss.Color("#282828"), // bg0
+	FocusBorder: lipgloss.Color("#83A598"), // bright blue
+	Cursor:      lipgloss.Color("#458588"), // neutral blue
+	Accent:      lipgloss.Color("#FABD2F"), // bright yellow
+	Added:       lipgloss.Color("#B8BB26"), // bright green
+	Removed:     lipgloss.Color("#FB4934"), // bright red
+	Conflict:    lipgloss.Color("#FE8019"), // bright orange
+	Error:       lipgloss.Color("#FB4934"), // bright red
+	Muted:       lipgloss.Color("#928374"), // gray
+	Date:        lipgloss.Color("#83A598"), // bright blue
+	Hash:        lipgloss.Color("#8EC07C"), // bright aqua
+	Ahead:       lipgloss.Color("#B8BB26"), // bright green
+	Author:      lipgloss.Color("#D3869B"), // bright purple
+}
+
+// themeKanagawa maps the slots onto Kanagawa (wave)
+// (https://github.com/rebelot/kanagawa.nvim).
+var themeKanagawa = Theme{
+	Background:  lipgloss.Color("#1F1F28"), // sumi ink 1
+	FocusBorder: lipgloss.Color("#7E9CD8"), // crystal blue
+	Cursor:      lipgloss.Color("#363646"), // sumi ink 3
+	Accent:      lipgloss.Color("#DCA561"), // autumn yellow
+	Added:       lipgloss.Color("#98BB6C"), // spring green
+	Removed:     lipgloss.Color("#C34043"), // autumn red
+	Conflict:    lipgloss.Color("#FFA066"), // surimi orange
+	Error:       lipgloss.Color("#E82424"), // samurai red
+	Muted:       lipgloss.Color("#727169"), // fuji gray
+	Date:        lipgloss.Color("#7FB4CA"), // spring blue
+	Hash:        lipgloss.Color("#7AA89F"), // wave aqua 2
+	Ahead:       lipgloss.Color("#98BB6C"), // spring green
+	Author:      lipgloss.Color("#957FB8"), // oni violet
+}
+
+// themeNord maps the same slots onto the Nord palette
+// (https://www.nordtheme.com/), fixed hex colors instead of terminal ANSI
+// slots.
+var themeNord = Theme{
+	Background:  lipgloss.Color("#2E3440"), // nord0  - polar night, bg
+	FocusBorder: lipgloss.Color("#88C0D0"), // nord8  - frost, light cyan
+	Cursor:      lipgloss.Color("#5E81AC"), // nord10 - frost, dark blue
+	Accent:      lipgloss.Color("#EBCB8B"), // nord13 - aurora, yellow
+	Added:       lipgloss.Color("#A3BE8C"), // nord14 - aurora, green
+	Removed:     lipgloss.Color("#BF616A"), // nord11 - aurora, red
+	Conflict:    lipgloss.Color("#D08770"), // nord12 - aurora, orange
+	Error:       lipgloss.Color("#BF616A"), // nord11 - aurora, red
+	Muted:       lipgloss.Color("#4C566A"), // nord3  - polar night, gray
+	Date:        lipgloss.Color("#81A1C1"), // nord9  - frost, blue
+	Hash:        lipgloss.Color("#8FBCBB"), // nord7  - frost, teal
+	Ahead:       lipgloss.Color("#A3BE8C"), // nord14 - aurora, green
+	Author:      lipgloss.Color("#B48EAD"), // nord15 - frost, purple
+}
+
+// themeOsakaJade maps the slots onto Osaka Jade
+// (https://omarchytheme.com/themes/osaka-jade).
+var themeOsakaJade = Theme{
+	Background:  lipgloss.Color("#111C18"), // background
+	FocusBorder: lipgloss.Color("#509475"), // blue
+	Cursor:      lipgloss.Color("#32473B"), // selection
+	Accent:      lipgloss.Color("#E5C736"), // bright yellow
+	Added:       lipgloss.Color("#549E6A"), // green
+	Removed:     lipgloss.Color("#FF5345"), // red
+	Conflict:    lipgloss.Color("#A2734B"), // orange
+	Error:       lipgloss.Color("#FF5345"), // red
+	Muted:       lipgloss.Color("#53685B"), // muted
+	Date:        lipgloss.Color("#2DD5B7"), // cyan
+	Hash:        lipgloss.Color("#8CD3CB"), // bright cyan
+	Ahead:       lipgloss.Color("#549E6A"), // green
+	Author:      lipgloss.Color("#D2689C"), // magenta
 }
 
 // themeSolarizedDark maps the slots onto Solarized Dark
@@ -187,24 +223,55 @@ var themeSolarizedDark = Theme{
 	Author:      lipgloss.Color("#D33682"), // magenta
 }
 
+// themeTokyoNight maps the slots onto Tokyo Night
+// (https://github.com/enkia/tokyo-night-vscode-theme).
+var themeTokyoNight = Theme{
+	Background:  lipgloss.Color("#1A1B26"), // bg
+	FocusBorder: lipgloss.Color("#7AA2F7"), // blue
+	Cursor:      lipgloss.Color("#33467C"), // bg highlight
+	Accent:      lipgloss.Color("#E0AF68"), // yellow
+	Added:       lipgloss.Color("#9ECE6A"), // green
+	Removed:     lipgloss.Color("#F7768E"), // red
+	Conflict:    lipgloss.Color("#FF9E64"), // orange
+	Error:       lipgloss.Color("#F7768E"), // red
+	Muted:       lipgloss.Color("#565F89"), // comment
+	Date:        lipgloss.Color("#7DCFFF"), // cyan
+	Hash:        lipgloss.Color("#73DACA"), // teal
+	Ahead:       lipgloss.Color("#9ECE6A"), // green
+	Author:      lipgloss.Color("#BB9AF7"), // magenta
+}
+
+// defaultTheme is the theme the app starts on. It is deliberately not
+// themeOrder[0]: the picker is alphabetical, but the default should defer to
+// the terminal's own scheme.
+const defaultTheme = "system"
+
+// themeOrder lists the themes in the picker, alphabetically; themesByName
+// must have exactly these keys.
 var themeOrder = []string{
 	"system",
-	"nord",
-	"gruvbox",
-	"dracula",
 	"catppuccin",
-	"tokyonight",
+	"dracula",
+	"everforest",
+	"gruvbox",
+	"kanagawa",
+	"nord",
+	"osakajade",
 	"solarized",
+	"tokyonight",
 }
 
 var themesByName = map[string]Theme{
-	"system":     themeSystem,
-	"nord":       themeNord,
-	"gruvbox":    themeGruvboxDark,
-	"dracula":    themeDracula,
 	"catppuccin": themeCatppuccinMocha,
-	"tokyonight": themeTokyoNight,
+	"dracula":    themeDracula,
+	"everforest": themeEverforest,
+	"gruvbox":    themeGruvboxDark,
+	"kanagawa":   themeKanagawa,
+	"nord":       themeNord,
+	"osakajade":  themeOsakaJade,
 	"solarized":  themeSolarizedDark,
+	"system":     themeSystem,
+	"tokyonight": themeTokyoNight,
 }
 
 func themeIndex(name string) int {

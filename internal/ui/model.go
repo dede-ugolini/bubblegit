@@ -334,8 +334,8 @@ func NewModel(dir string) *Model {
 		inputPopup: inputPopup{
 			input: textinput.New(),
 		},
-		themeName: themeOrder[0],
-		theme:     themesByName[themeOrder[0]],
+		themeName: defaultTheme,
+		theme:     themesByName[defaultTheme],
 		useDelta:  true,
 		collapsed: make(map[string]bool),
 	}
