@@ -40,7 +40,7 @@ The TUI operates on the git repo in the current working directory.
 |-----|--------|
 | `Tab` | Cycle panels |
 | `1`-`4` | Jump to panel (1=Files, 2=Branch, 3=Log, 4=Stash) |
-| `w` | Toggle the Files panel between the file tree and the Worktrees list |
+| `w` | Toggle the focused list panel's subpanel (file tree ↔ worktrees, branches ↔ tags) |
 | `0` | Jump to diff panel |
 | `+` / `-` | Toggle fullscreen / restore |
 | `t` | Cycle theme (system → nord) |
@@ -87,6 +87,18 @@ worktree, or a new name to create that branch from HEAD.
 | `M` | Merge (choose: fast-forward / merge commit / squash) |
 | `P` | Push to origin (sets upstream) |
 | `R` | Set / repoint "origin" remote URL |
+| `w` | Toggle between branches and the tags list |
+
+### Tags
+
+Press `w` on the Branches panel to switch it to the repository's tags (name
+plus tag message, newest first). Selecting a tag shows its commit in the diff
+panel, like a log entry.
+
+| Key | Action |
+|-----|--------|
+| `j`/`k` or `↑`/`↓` | Move |
+| `w` | Toggle back to the branch list |
 
 ### Log
 

@@ -943,6 +943,50 @@ func TestTagsByCommit(t *testing.T) {
 	})
 }
 
+func TestTags(t *testing.T) {
+	t.Run("no tags", func(t *testing.T) {
+		dir := initRepo(t)
+		tags, err := Tags(dir)
+		if err != nil {
+			t.Fatalf("Tags() error: %v", err)
+		}
+		if tags != nil {
+			t.Fatalf("Tags() = %v, want nil", tags)
+		}
+	})
+
+	t.Run("annotated and lightweight tags", func(t *testing.T) {
+		dir := initRepo(t)
+		hash := revParse(t, dir, "HEAD")
+
+		run(t, dir, "git", "tag", "-a", "v1.0", "-m", "release 1.0")
+		run(t, dir, "git", "tag", "light")
+
+		tags, err := Tags(dir)
+		if err != nil {
+			t.Fatalf("Tags() error: %v", err)
+		}
+		if len(tags) != 2 {
+			t.Fatalf("Tags() len = %d, want 2: %+v", len(tags), tags)
+		}
+		byName := map[string]TagEntry{}
+		for _, tag := range tags {
+			byName[tag.Name] = tag
+		}
+		// Both tags point at the same commit; the annotated one is peeled
+		// from its tag object to that commit.
+		if got := byName["v1.0"].Hash; got != hash {
+			t.Errorf("v1.0 hash = %q, want %q", got, hash)
+		}
+		if got := byName["v1.0"].Message; got != "release 1.0" {
+			t.Errorf("v1.0 message = %q, want %q", got, "release 1.0")
+		}
+		if got := byName["light"].Hash; got != hash {
+			t.Errorf("light hash = %q, want %q", got, hash)
+		}
+	})
+}
+
 func TestBranchesTracking(t *testing.T) {
 	remoteDir := t.TempDir()
 	run(t, remoteDir, "git", "init", "--bare", "remote.git")

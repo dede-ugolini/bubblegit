@@ -362,6 +362,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.clampCursors()
 		return m, nil
 
+	case tagsListMsg:
+		m.tagList = []git.TagEntry(msg)
+		m.clampCursors()
+		return m, nil
+
 	case tea.MouseClickMsg:
 		m.mouseClick(msg.Mouse())
 		return m, m.showDiff()
@@ -429,7 +434,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case "d":
 			// Delete Branch
-			if m.focus == focusBranch && len(m.branches) > 0 {
+			if m.focus == focusBranch && m.panels[focusBranch].view == viewMain && len(m.branches) > 0 {
 				m.ask(confirm{
 					title: "Delete branch '" + m.branches[m.panels[focusBranch].idx].Name + "'?",
 					onYes: m.handleDeleteBranch,
@@ -491,7 +496,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case "n":
 			// Create Branch
-			if m.focus == focusBranch {
+			if m.focus == focusBranch && m.panels[focusBranch].view == viewMain {
 				m.inputPopup.action = inputActionNewBranch
 				m.inputPopup.title = "New branch"
 				m.inputPopup.input.SetWidth(m.width / 3)
@@ -537,7 +542,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case "r":
 			// Rename Branch
-			if m.focus == focusBranch && len(m.branches) > 0 {
+			if m.focus == focusBranch && m.panels[focusBranch].view == viewMain && len(m.branches) > 0 {
 				old := m.branches[m.panels[focusBranch].idx].Name
 				m.inputPopup.action = inputActionRenameBranch
 				m.inputPopup.title = "Rename branch"
@@ -569,7 +574,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 			// Checkout Branch
-			if m.focus == focusBranch && len(m.branches) > 0 {
+			if m.focus == focusBranch && m.panels[focusBranch].view == viewMain && len(m.branches) > 0 {
 				return m, tea.Sequence(m.handleCheckoutBranch, m.Refresh())
 			}
 			// Apply Stash
@@ -666,14 +671,14 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		case "M":
-			if m.focus == focusBranch && len(m.branches) > 0 {
+			if m.focus == focusBranch && m.panels[focusBranch].view == viewMain && len(m.branches) > 0 {
 				m.mergePopup.active = true
 				m.mergePopup.idx = 0
 				m.mergePopup.branch = m.branches[m.panels[focusBranch].idx].Name
 			}
 
 		case "P":
-			if m.focus == focusBranch && len(m.branches) > 0 {
+			if m.focus == focusBranch && m.panels[focusBranch].view == viewMain && len(m.branches) > 0 {
 				branch := m.branches[m.panels[focusBranch].idx].Name
 				return m, tea.Sequence(func() tea.Msg { return m.handlePush(branch) }, m.Refresh())
 			}
@@ -681,7 +686,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "R":
 			// Set the "origin" remote (adds it if the repo has none, or
 			// repoints it if it does).
-			if m.focus == focusBranch {
+			if m.focus == focusBranch && m.panels[focusBranch].view == viewMain {
 				m.inputPopup.action = inputActionSetRemote
 				m.inputPopup.title = "Set remote"
 				m.inputPopup.input.SetWidth(m.width / 3)
@@ -762,6 +767,27 @@ func (m *Model) showDiff() tea.Cmd {
 			}
 			return diffMsg{diff}
 		case focusBranch:
+			if m.panels[focusBranch].view == viewTags {
+				// The tags subpanel diffs the tagged commit, exactly as the
+				// log panel diffs the selected commit.
+				if len(m.tagList) == 0 {
+					return diffMsg{}
+				}
+				var (
+					diff string
+					err  error
+				)
+				hash := m.tagList[m.panels[focusBranch].idx].Hash
+				if m.useDelta {
+					diff, err = git.ShowDelta(m.dir, hash, m.mode.full(), m.diff.Width())
+				} else {
+					diff, err = git.Show(m.dir, hash)
+				}
+				if err != nil {
+					return errMsg{err}
+				}
+				return diffMsg{diff}
+			}
 			if len(m.branches) <= 0 {
 				return diffMsg{}
 			}
